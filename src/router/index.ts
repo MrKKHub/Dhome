@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -23,7 +24,23 @@ const router = createRouter({
       name: 'profile',
       component: () => import('@/views/Profile.vue'),
     },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/Login.vue'),
+    },
   ],
+})
+
+router.beforeEach((to) => {
+  const userStore = useUserStore()
+  if (to.path === '/publish' && !userStore.isLoggedIn) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
+  }
+  return true
 })
 
 export default router

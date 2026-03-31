@@ -15,6 +15,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import { useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import { usePostStore } from '@/store/postStore'
+import { useUserStore } from '@/store/userStore'
 
 type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
 
@@ -27,6 +28,7 @@ interface DraftItem {
 
 const router = useRouter()
 const store = usePostStore()
+const userStore = useUserStore()
 const activeTab = ref<CenterTab>('我的发布')
 
 const draftList = ref<DraftItem[]>([
@@ -75,6 +77,10 @@ const removeDraft = (id: number) => {
 }
 
 const handleLogout = async () => {
+  if (!userStore.isLoggedIn) {
+    router.push('/login?redirect=/profile')
+    return
+  }
   try {
     await showConfirmDialog({
       title: '退出登录',
@@ -82,7 +88,8 @@ const handleLogout = async () => {
       confirmButtonText: '退出',
       cancelButtonText: '取消',
     })
-    showToast('已退出（演示态）')
+    userStore.logout()
+    showToast('已退出登录')
     router.push('/')
   } catch {
     // 用户取消
@@ -100,8 +107,16 @@ const handleLogout = async () => {
           class="h-14 w-14 rounded-full border border-slate-100"
         />
         <div>
-          <h2 class="text-[17px] font-semibold leading-snug text-slate-900">你自己</h2>
-          <p class="text-[12px] text-slate-400">UID: 1024 2048 · Lv.6 创作者</p>
+          <h2 class="text-[17px] font-semibold leading-snug text-slate-900">
+            {{ userStore.userInfo?.nickname ?? '访客' }}
+          </h2>
+          <p class="text-[12px] text-slate-400">
+            {{
+              userStore.isLoggedIn
+                ? `手机号 ${userStore.userInfo?.phone ?? ''}`
+                : '未登录，登录后解锁完整能力'
+            }}
+          </p>
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 text-center">
@@ -242,7 +257,7 @@ const handleLogout = async () => {
       @click="handleLogout"
     >
       <LogOut class="h-4 w-4" />
-      退出登录
+      {{ userStore.isLoggedIn ? '退出登录' : '前往登录' }}
     </button>
 
     <div class="grid grid-cols-2 gap-2">

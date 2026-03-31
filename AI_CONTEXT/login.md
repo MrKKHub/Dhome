@@ -2,35 +2,38 @@
  * @Author: huashikai huashikai@huitongjt.com
  * @Date: 2026-03-31 16:00:12
  * @LastEditors: huashikai huashikai@huitongjt.com
- * @LastEditTime: 2026-03-31 16:12:07
+ * @LastEditTime: 2026-03-31 17:17:32
  * @FilePath: /dhome/AI_CONTEXT/login.md
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
-## 🚀 迭代记录：Infinite Scroll (上拉加载更多)
+
+## 🔐 迭代记录：Authentication (登录与注册)
 
 ### 1. 业务逻辑规范 (Logic)
-- **数据源**: 统一由 `userInfo.ts` 维护。
-  - `userName`: 用户名。
-  - `userAccount`: 每页条数（默认 10 条）。
-  - `userPassword`: 布尔值，标记是否已加载全部数据。
-  - `UID`: 布尔值，防止重复触发请求。
-  - `UID`: 布尔值，防止重复触发请求。
-  - `UID`: 布尔值，防止重复触发请求。
-- **模拟延时**: 为了模拟真实网络，加载函数必须包含一个 800ms 的 `setTimeout` 异步操作。
+- **状态管理**: 在 `src/store/userStore.ts` 中维护 `isLoggedIn`、`userInfo` 和 `token`。
+- **表单校验**: 
+  - 用户名/账号校验。
+  - 密码强度校验（至少 6 位，包含数字/字母）。
+- **Loading 集成**: 
+  - 提交按钮点击后进入 `loading` 状态（禁用重复点击）。
+  - 使用全局或局部 `van-loading` 遮罩，模拟后端验证过程（800ms 延时）。
+- **路由守卫**: 登录成功后自动跳转至 `redirect` 页面或首页；未登录用户访问“发布”页应拦截并跳转至登录页。
 
-### 2. UI/UX Pro Max 细节 (Visuals)
-- **加载组件**: 使用 Vant 4 的 `van-list` 或自定义 `IntersectionObserver` 实现。
-- **底部提示**: 
-  - 加载中：显示微小的 `van-loading` 菊花图，文本“正在探索更多内容...”。
-  - 已加载全部：显示文本“—— 已到达宇宙尽头 ——”，颜色为 `text-slate-300`，字号 `text-[12px]`。
-- **性能优化**: 
-  - 使用 `van-pull-refresh` 包裹列表，实现下拉刷新重置分页。
-  - 列表项进入视图时建议带有轻微的 `fade-in` 动画。
+### 2. UI/UX Pro Max 设计规范 (Visuals)
+- **页面布局**: 采用“大标题 + 极简表单”结构。
+  - 顶部返回按钮：`backdrop-blur` 效果。
+  - 欢迎语：`text-2xl font-bold text-slate-900 mb-2`。
+- **输入框组件**: 
+  - 移除传统边框，使用 `bg-slate-50` 作为输入框背景。
+  - 聚焦时（Focus）：背景色变为白色，并带有微弱的主色调阴影 `shadow-blue-50`。
+- **提交按钮**: 
+  - 宽度 `w-full`，高度 `h-12`，圆角 `rounded-full`。
+  - 使用主色渐变或纯色沉浸式设计。
+- **交互动效**: 
+  - 登录/注册切换采用 `slide-left/right` 平滑过渡。
+  - 校验失败时，输入框带有轻微的红色震动提醒。
 
 ### 3. 组件关联 (Components)
-- 影响页面：`Home.vue` (信息流主页)。
-- 影响 Store：`src/store/postStore.ts` (需增加 `fetchNextPage` action)。
-
-### 4. 注意 (tips)
-- 防止滚动穿透
-- 重复加载检查：务必在loading 为 true 时不要触发新的请求。
+- 页面：`Login.vue` (包含注册切换逻辑)。
+- 影响 Store：`src/store/userStore.ts`。
+- UI 依赖：Vant 4 的 `Field`, `Button`, `CellGroup`, `Toast`。

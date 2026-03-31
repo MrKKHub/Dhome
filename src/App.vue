@@ -7,6 +7,7 @@ const route = useRoute()
 const router = useRouter()
 
 const isDetailRoute = computed(() => route.path.startsWith('/detail'))
+const hideShellOnAuth = computed(() => route.path === '/login')
 
 const tabs = [
   { path: '/', icon: House, label: '首页' },
@@ -38,6 +39,7 @@ const goBack = () => {
 <template>
   <div class="relative min-h-dvh bg-[#F8F9FB]">
     <header
+      v-if="!hideShellOnAuth"
       class="fixed left-1/2 top-0 z-30 w-full max-w-[375px] -translate-x-1/2 border-b border-slate-100/50 bg-white/80 px-4 py-3 backdrop-blur-md"
     >
       <div class="relative flex min-h-[28px] items-center justify-center">
@@ -56,7 +58,7 @@ const goBack = () => {
       </div>
     </header>
 
-    <main class="px-4 pb-24 pt-16">
+    <main :class="hideShellOnAuth ? 'px-4 pb-6 pt-4' : 'px-4 pb-24 pt-16'">
       <RouterView v-slot="{ Component }">
         <Transition name="fade" mode="out-in">
           <component :is="Component" />
@@ -65,6 +67,7 @@ const goBack = () => {
     </main>
 
     <footer
+      v-if="!hideShellOnAuth"
       class="fixed bottom-0 left-1/2 z-20 w-full max-w-[375px] -translate-x-1/2 border-t border-slate-100/50 bg-white/80 px-3 py-2 backdrop-blur-md"
     >
       <nav class="grid grid-cols-4 gap-2">

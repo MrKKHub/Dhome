@@ -15,6 +15,7 @@ declare module 'vue' {
     PostCard: typeof import('./components/PostCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    VanField: typeof import('vant/es')['Field']
     VanList: typeof import('vant/es')['List']
     VanLoading: typeof import('vant/es')['Loading']
     VanPullRefresh: typeof import('vant/es')['PullRefresh']
