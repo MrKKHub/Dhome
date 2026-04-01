@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import request from '@/api/request'
 import type { PostMood } from '@/constants/moods'
 import { MOOD_OPTIONS, randomTreeNickname } from '@/constants/moods'
+import { useUserStore } from '@/store/userStore'
 
 export type { PostMood } from '@/constants/moods'
 
@@ -41,15 +42,18 @@ export interface PublishPayload {
   followsOnly: boolean
 }
 
-/** 后端 /posts 单条结构（兼容 snake_case / 嵌套 user） */
+/** 后端 /posts 单条结构（Prisma + author；兼容旧字段） */
 interface PostApiRow {
   id: number | string
+  authorId?: string | number
   title?: string
   content?: string
   images?: unknown
   mood?: string
+  moodTag?: string
   follows_only?: boolean
   followsOnly?: boolean
+  isAnonymous?: boolean
   nickname?: string
   avatar?: string
   user_nickname?: string
@@ -60,8 +64,16 @@ interface PostApiRow {
   favorited?: boolean
   likes?: number
   likes_count?: number
+  hugCount?: number
   comments?: number
   comments_count?: number
+  commentCount?: number
+  author?: {
+    id?: string | number
+    nickname?: string
+    avatar?: string | null
+    avatar_url?: string
+  }
   user?: {
     nickname?: string
     avatar?: string
@@ -111,11 +123,13 @@ function normalizeMood(raw: string | undefined): PostMood {
 
 function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostItem {
   const nick =
+    raw.author?.nickname ??
     raw.nickname ??
     raw.user_nickname ??
     raw.user?.nickname ??
     '树洞旅人'
   const avatar =
+    raw.author?.avatar ??
     raw.avatar ??
     raw.user_avatar ??
     raw.user?.avatar ??
@@ -135,11 +149,11 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     title: raw.title ?? '',
     content: raw.content ?? '',
     images: normalizeImages(raw.images),
-    mood: normalizeMood(raw.mood),
+    mood: normalizeMood(raw.mood ?? raw.moodTag),
     liked: raw.liked ?? false,
     favorited: raw.favorited ?? false,
-    likes: raw.likes_count ?? raw.likes ?? 0,
-    comments: raw.comments_count ?? raw.comments ?? 0,
+    likes: raw.hugCount ?? raw.likes_count ?? raw.likes ?? 0,
+    comments: raw.commentCount ?? raw.comments_count ?? raw.comments ?? 0,
     followsOnly: raw.follows_only ?? raw.followsOnly ?? false,
     createdAt: createdLabel,
     ...overrides,
@@ -240,57 +254,41 @@ export const usePostStore = defineStore('post', () => {
   const fetchPosts = async () => {
     const res = await request.get<unknown>('/posts')
     const rows = unwrapPostsResponse(res.data)
-    posts.value = rows.map((row) => mapPostFromApi(row))
+    const uid = useUserStore().userInfo?.id ?? null
+    posts.value = rows.map((row) => {
+      const aid = row.authorId ?? row.author?.id
+      return mapPostFromApi(row, {
+        isMine: uid != null && aid != null && String(aid) === uid,
+      })
+    })
   }
 
   /**
    * POST /posts：创建心情，并把返回（或本地拼装）插入列表头部
    */
   const addPost = async (data: PublishPayload) => {
+    const remoteImages = data.images.filter(
+      (u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim()),
+    )
     const body = {
       title: data.title,
       content: data.content,
-      images: data.images,
+      images: remoteImages,
+      moodTag: data.mood,
       mood: data.mood,
-      follows_only: data.followsOnly,
+      isAnonymous: false,
     }
-    const res = await request.post<PostApiRow | { data?: PostApiRow }>('/posts', body)
-    const raw = res.data
-    const row: PostApiRow | undefined =
-      raw && typeof raw === 'object' && 'id' in raw
-        ? (raw as PostApiRow)
-        : (raw as { data?: PostApiRow })?.data
-
-    if (row && row.id != null) {
-      posts.value.unshift(
-        mapPostFromApi(row, {
-          isMine: true,
-        }),
-      )
-      return
+    const res = await request.post<PostApiRow>('/posts', body)
+    const row = res.data
+    if (!row || row.id == null || row.id === '') {
+      throw new Error('发布接口未返回帖子数据')
     }
-
-    const nick = randomTreeNickname()
-    const nextId =
-      posts.value.length === 0
-        ? 1
-        : Math.max(...posts.value.map((p) => p.id)) + 1
-    posts.value.unshift({
-      id: nextId,
-      avatar: `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(nick)}`,
-      nickname: nick,
-      title: data.title,
-      content: data.content,
-      images: data.images,
-      mood: data.mood,
-      liked: false,
-      favorited: false,
-      likes: 0,
-      comments: 0,
-      followsOnly: data.followsOnly,
-      createdAt: '刚刚',
-      isMine: true,
-    })
+    posts.value.unshift(
+      mapPostFromApi(row, {
+        isMine: true,
+        followsOnly: data.followsOnly,
+      }),
+    )
   }
 
   const toggleLike = (id: number) => {

@@ -65,8 +65,8 @@ const accountLine = computed(() => {
     return '未登录，登录后解锁完整能力'
   }
   const u = userStore.userInfo
-  const acc = u ? u.account : ''
-  return acc ? `账号 ${acc}` : '账号'
+  const acc = u ? u.email : ''
+  return acc ? `邮箱 ${acc}` : '邮箱'
 })
 
 const settings = [

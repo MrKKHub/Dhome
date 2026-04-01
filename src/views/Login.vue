@@ -15,6 +15,7 @@ const userStore = useUserStore()
 const activeTab = ref<AuthTab>('login')
 const loginMethod = ref<LoginMethod>('password')
 const account = ref('')
+const nickname = ref('')
 const password = ref('')
 const code = ref('')
 const errorTip = ref('')
@@ -52,13 +53,12 @@ const fadeNavigate = (path: string) => {
 const mockSendCode = async () => {
   const t = account.value.trim()
   if (!t) {
-    touchError('先写下你的手机号或邮箱，好吗？')
+    touchError('先写下你的邮箱，好吗？')
     return
   }
-  const ok =
-    /^1\d{10}$/.test(t) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)
   if (!ok) {
-    touchError('哎呀，这串好像走丢了，再核对一下？')
+    touchError('请输入有效的邮箱地址')
     return
   }
   if (codeSending.value) {
@@ -74,16 +74,17 @@ const mockSendCode = async () => {
 
 const submitAuth = async () => {
   if (activeTab.value === 'login') {
-    const result =
-      loginMethod.value === 'password'
-        ? await userStore.login({
-            account: account.value,
-            password: password.value,
-          })
-        : await userStore.login({
-            account: account.value,
-            code: code.value,
-          })
+    if (loginMethod.value === 'code') {
+      const msg = '验证码登录暂未接入，请使用密码登录'
+      touchError(msg)
+      showToast(msg)
+      return
+    }
+
+    const result = await userStore.login({
+      email: account.value.trim(),
+      password: password.value,
+    })
 
     if (!result.ok) {
       touchError(result.message)
@@ -96,9 +97,9 @@ const submitAuth = async () => {
   }
 
   const result = await userStore.register({
-    account: account.value,
+    email: account.value.trim(),
     password: password.value,
-    code: code.value,
+    nickname: nickname.value.trim(),
   })
   if (!result.ok) {
     touchError(result.message)
@@ -258,9 +259,11 @@ onUnmounted(() => {
         <div :key="activeTab" class="space-y-3">
           <van-field
             v-model="account"
-            label="账号"
-            placeholder="手机号或邮箱"
-            maxlength="50"
+            label="邮箱"
+            placeholder="name@example.com"
+            maxlength="80"
+            type="email"
+            autocomplete="email"
             class="auth-field rounded-2xl"
             :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
           />
@@ -299,6 +302,7 @@ onUnmounted(() => {
               label="密码"
               placeholder="至少 6 位，含字母与数字"
               class="auth-field rounded-2xl"
+              autocomplete="current-password"
               :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
               @focus="onPasswordFocus"
               @blur="onPasswordBlur"
@@ -327,31 +331,21 @@ onUnmounted(() => {
           </template>
 
           <template v-else>
-            <div class="flex gap-2">
-              <van-field
-                v-model="code"
-                type="digit"
-                maxlength="6"
-                label="验证码"
-                placeholder="验证码"
-                class="auth-field flex-1 rounded-2xl"
-                :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
-              />
-              <button
-                type="button"
-                class="mt-1.5 shrink-0 self-start rounded-full bg-white/70 px-3 py-2 text-[11px] font-medium text-[#E07A5F] shadow-inner transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-                :disabled="codeSending"
-                @click="mockSendCode"
-              >
-                {{ codeBtnText }}
-              </button>
-            </div>
+            <van-field
+              v-model="nickname"
+              label="昵称"
+              placeholder="树洞里怎么称呼你"
+              maxlength="32"
+              class="auth-field rounded-2xl"
+              :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+            />
             <van-field
               v-model="password"
               type="password"
               label="密码"
               placeholder="至少 6 位，含字母与数字"
               class="auth-field rounded-2xl"
+              autocomplete="new-password"
               :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
               @focus="onPasswordFocus"
               @blur="onPasswordBlur"

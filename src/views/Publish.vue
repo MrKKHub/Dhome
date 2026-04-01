@@ -1,55 +1,102 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import axios from 'axios'
+import { closeToast, showLoadingToast, showToast } from 'vant'
+import { uploadPostImages } from '@/api/upload'
 import { MOOD_BADGE_CLASS, MOOD_OPTIONS } from '@/constants/moods'
 import type { PostMood } from '@/constants/moods'
 import { usePostStore } from '@/store/postStore'
+import { useUserStore } from '@/store/userStore'
+
+interface ImageSlot {
+  file: File
+  preview: string
+}
 
 const router = useRouter()
 const store = usePostStore()
+const userStore = useUserStore()
 
 const title = ref('')
 const content = ref('')
 const followsOnly = ref(false)
 const selectedMood = ref<PostMood | ''>('')
-const previewImages = ref<string[]>([])
+const imageSlots = ref<ImageSlot[]>([])
+const submitting = ref(false)
 
 const uploadImages = (event: Event) => {
-  const files = (event.target as HTMLInputElement).files
+  const input = event.target as HTMLInputElement
+  const files = input.files
   if (!files) {
     return
   }
-  const left = 9 - previewImages.value.length
+  const left = 9 - imageSlots.value.length
   if (left <= 0) {
     showToast('最多上传 9 张图片')
+    input.value = ''
     return
   }
   Array.from(files)
     .slice(0, left)
     .forEach((file) => {
-      const localUrl = URL.createObjectURL(file)
-      previewImages.value.push(localUrl)
+      imageSlots.value.push({
+        file,
+        preview: URL.createObjectURL(file),
+      })
     })
+  input.value = ''
 }
 
 const removeImage = (index: number) => {
-  const target = previewImages.value[index]
-  if (target) {
-    URL.revokeObjectURL(target)
+  const slot = imageSlots.value[index]
+  if (slot) {
+    URL.revokeObjectURL(slot.preview)
   }
-  previewImages.value.splice(index, 1)
+  imageSlots.value.splice(index, 1)
 }
 
 onBeforeUnmount(() => {
-  previewImages.value.forEach((item) => URL.revokeObjectURL(item))
+  imageSlots.value.forEach((slot) => URL.revokeObjectURL(slot.preview))
 })
 
 const pickMood = (m: PostMood) => {
   selectedMood.value = m
 }
 
+const resetForm = () => {
+  title.value = ''
+  content.value = ''
+  selectedMood.value = ''
+  followsOnly.value = false
+  imageSlots.value.forEach((slot) => URL.revokeObjectURL(slot.preview))
+  imageSlots.value = []
+}
+
+const axiosMessage = (e: unknown, fallback: string): string => {
+  if (!axios.isAxiosError(e)) {
+    return fallback
+  }
+  const data = e.response?.data as { message?: string | string[] } | undefined
+  const m = data?.message
+  if (Array.isArray(m) && m[0]) {
+    return m[0]
+  }
+  if (typeof m === 'string' && m.trim()) {
+    return m
+  }
+  return fallback
+}
+
 const submitPost = async () => {
+  if (submitting.value) {
+    return
+  }
+  if (!userStore.isLoggedIn || !userStore.token) {
+    showToast('请先登录后再发布')
+    router.push({ path: '/login', query: { redirect: '/publish' } })
+    return
+  }
   if (!title.value.trim() || !content.value.trim()) {
     showToast('请填写标题和正文')
     return
@@ -59,18 +106,47 @@ const submitPost = async () => {
     return
   }
 
+  submitting.value = true
+  let loader = false
   try {
+    let urls: string[] = []
+    if (imageSlots.value.length) {
+      showLoadingToast({
+        message: '正在上传图片…',
+        forbidClick: true,
+        duration: 0,
+      })
+      loader = true
+      urls = await uploadPostImages(imageSlots.value.map((s) => s.file))
+    }
+
     await store.publishPost({
       title: title.value.trim(),
       content: content.value.trim(),
-      images: [...previewImages.value],
+      images: urls,
       mood: selectedMood.value,
       followsOnly: followsOnly.value,
     })
+
+    if (loader) {
+      closeToast()
+    }
+    resetForm()
     showToast('已轻轻放进树洞～')
     router.push('/')
-  } catch {
-    showToast('发布失败，请稍后再试')
+  } catch (e) {
+    if (loader) {
+      closeToast()
+    }
+    if (axios.isAxiosError(e) && e.response?.status === 401) {
+      showToast('登录已过期，请重新登录')
+      userStore.logout()
+      router.push({ path: '/login', query: { redirect: '/publish' } })
+      return
+    }
+    showToast(axiosMessage(e, '发布失败，请稍后再试'))
+  } finally {
+    submitting.value = false
   }
 }
 </script>
@@ -122,6 +198,7 @@ const submitPost = async () => {
 
       <label
         class="inline-flex w-full cursor-pointer justify-center rounded-full bg-[#F5EDE6] px-3 py-2.5 text-[14px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
+        :class="submitting ? 'pointer-events-none opacity-60' : ''"
       >
         附上图片（最多 9 张）
         <input
@@ -129,23 +206,29 @@ const submitPost = async () => {
           class="hidden"
           accept="image/*"
           multiple
+          :disabled="submitting"
           @change="uploadImages"
         />
       </label>
 
       <div
-        v-if="previewImages.length"
+        v-if="imageSlots.length"
         class="grid grid-cols-3 gap-2 rounded-2xl bg-apricot/50 p-2"
       >
         <div
-          v-for="(image, idx) in previewImages"
-          :key="image"
+          v-for="(slot, idx) in imageSlots"
+          :key="slot.preview"
           class="relative"
         >
-          <img :src="image" alt="preview" class="h-24 w-full rounded-xl object-cover" />
+          <img
+            :src="slot.preview"
+            alt="preview"
+            class="h-24 w-full rounded-xl object-cover"
+          />
           <button
             type="button"
             class="absolute right-1 top-1 rounded-full bg-warmInk/55 px-2 py-0.5 text-[11px] text-white transition-all duration-200 active:scale-[0.97]"
+            :disabled="submitting"
             @click="removeImage(idx)"
           >
             删除
@@ -159,15 +242,17 @@ const submitPost = async () => {
           v-model="followsOnly"
           type="checkbox"
           class="h-4 w-4 accent-brand"
+          :disabled="submitting"
         />
       </label>
 
       <button
         type="button"
-        class="h-12 w-full rounded-full bg-gradient-to-r from-brand to-[#FFAB90] text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97]"
+        class="h-12 w-full rounded-full bg-gradient-to-r from-brand to-[#FFAB90] text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97] disabled:opacity-60"
+        :disabled="submitting"
         @click="submitPost"
       >
-        放进树洞
+        {{ submitting ? '发布中…' : '放进树洞' }}
       </button>
     </div>
   </section>
