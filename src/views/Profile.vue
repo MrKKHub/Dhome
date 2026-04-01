@@ -46,9 +46,7 @@ const draftList = ref<DraftItem[]>([
   },
 ])
 
-const myPosts = computed(() =>
-  store.posts.filter((item) => item.nickname === '你自己'),
-)
+const myPosts = computed(() => store.posts.filter((item) => item.isMine))
 const myFavorites = computed(() =>
   store.posts.filter((item) => item.favorited),
 )
@@ -56,6 +54,20 @@ const myFavorites = computed(() =>
 const totalLikes = computed(() =>
   myPosts.value.reduce((sum, item) => sum + item.likes, 0),
 )
+
+const displayName = computed(() => {
+  const u = userStore.userInfo
+  return u ? u.nickname : '访客'
+})
+
+const accountLine = computed(() => {
+  if (!userStore.isLoggedIn) {
+    return '未登录，登录后解锁完整能力'
+  }
+  const u = userStore.userInfo
+  const acc = u ? u.account : ''
+  return acc ? `账号 ${acc}` : '账号'
+})
 
 const settings = [
   { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
@@ -99,62 +111,64 @@ const handleLogout = async () => {
 
 <template>
   <section class="space-y-3 animate-fade-in">
-    <div class="rounded-2xl border border-slate-100/50 bg-white p-4 shadow-ambient">
+    <div
+      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
+    >
       <div class="mb-3 flex items-center gap-3">
         <img
           src="https://api.dicebear.com/9.x/notionists/svg?seed=You"
           alt="you"
-          class="h-14 w-14 rounded-full border border-slate-100"
+          class="h-14 w-14 rounded-full border border-[#F0E8E0]"
         />
         <div>
-          <h2 class="text-[17px] font-semibold leading-snug text-slate-900">
-            {{ userStore.userInfo?.nickname ?? '访客' }}
+          <h2 class="text-[17px] font-semibold leading-snug text-warmInk">
+            {{ displayName }}
           </h2>
-          <p class="text-[12px] text-slate-400">
-            {{
-              userStore.isLoggedIn
-                ? `手机号 ${userStore.userInfo?.phone ?? ''}`
-                : '未登录，登录后解锁完整能力'
-            }}
+          <p class="text-[12px] text-warmInk/45">
+            {{ accountLine }}
           </p>
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="rounded-xl bg-slate-50 py-2">
-          <p class="text-[17px] font-semibold text-slate-900">36</p>
-          <p class="text-[12px] text-slate-400">关注</p>
+        <div class="rounded-xl bg-apricot/60 py-2">
+          <p class="text-[17px] font-semibold text-warmInk">36</p>
+          <p class="text-[12px] text-warmInk/40">关注</p>
         </div>
-        <div class="rounded-xl bg-slate-50 py-2">
-          <p class="text-[17px] font-semibold text-slate-900">128</p>
-          <p class="text-[12px] text-slate-400">粉丝</p>
+        <div class="rounded-xl bg-apricot/60 py-2">
+          <p class="text-[17px] font-semibold text-warmInk">128</p>
+          <p class="text-[12px] text-warmInk/40">粉丝</p>
         </div>
-        <div class="rounded-xl bg-slate-50 py-2">
-          <p class="text-[17px] font-semibold text-slate-900">{{ totalLikes }}</p>
-          <p class="text-[12px] text-slate-400">我的获赞</p>
+        <div class="rounded-xl bg-apricot/60 py-2">
+          <p class="text-[17px] font-semibold text-warmInk">{{ totalLikes }}</p>
+          <p class="text-[12px] text-warmInk/40">拥抱</p>
         </div>
       </div>
     </div>
 
-    <div class="rounded-2xl border border-slate-100/50 bg-white p-2 shadow-ambient">
+    <div
+      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-2 shadow-warm backdrop-blur-sm"
+    >
       <button
         v-for="item in settings"
         :key="item.label"
         type="button"
-        class="mb-2 flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-3 text-left transition-all duration-200 last:mb-0 active:scale-[0.97]"
+        class="mb-2 flex w-full items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3 text-left transition-all duration-200 last:mb-0 active:scale-[0.97]"
       >
         <div class="flex items-center gap-2">
-          <component :is="item.icon" class="h-4 w-4 text-slate-500" />
+          <component :is="item.icon" class="h-4 w-4 text-warmInk/45" />
           <div>
-            <p class="text-[14px] font-semibold text-slate-800">{{ item.label }}</p>
-            <p class="text-[12px] text-slate-400">{{ item.desc }}</p>
+            <p class="text-[14px] font-semibold text-warmInk">{{ item.label }}</p>
+            <p class="text-[12px] text-warmInk/40">{{ item.desc }}</p>
           </div>
         </div>
-        <ChevronRight class="h-4 w-4 text-slate-400" />
+        <ChevronRight class="h-4 w-4 text-warmInk/35" />
       </button>
     </div>
 
-    <div class="rounded-2xl border border-slate-100/50 bg-white p-3 shadow-ambient">
-      <div class="mb-3 flex rounded-full bg-slate-100 p-1">
+    <div
+      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-3 shadow-warm backdrop-blur-sm"
+    >
+      <div class="mb-3 flex rounded-full bg-apricot/80 p-1">
         <button
           v-for="tab in centerTabs"
           :key="tab"
@@ -162,8 +176,8 @@ const handleLogout = async () => {
           class="flex-1 rounded-full px-3 py-2 text-[13px] transition-all duration-200 active:scale-[0.97]"
           :class="
             activeTab === tab
-              ? 'bg-white font-semibold text-slate-900 shadow-sm'
-              : 'text-slate-500'
+              ? 'bg-white font-semibold text-warmInk shadow-sm'
+              : 'text-warmInk/45'
           "
           @click="setCenterTab(tab)"
         >
@@ -185,7 +199,7 @@ const handleLogout = async () => {
         </div>
         <div
           v-else
-          class="rounded-xl bg-slate-100 py-8 text-center text-[13px] text-slate-500"
+          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
         >
           你还没有发布内容，去发布第一条动态吧。
         </div>
@@ -205,7 +219,7 @@ const handleLogout = async () => {
         </div>
         <div
           v-else
-          class="rounded-xl bg-slate-100 py-8 text-center text-[13px] text-slate-500"
+          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
         >
           暂无收藏内容，看到喜欢的先收藏起来。
         </div>
@@ -216,13 +230,13 @@ const handleLogout = async () => {
           <div
             v-for="draft in draftList"
             :key="draft.id"
-            class="rounded-xl bg-slate-50 p-3"
+            class="rounded-2xl bg-apricot/50 p-3"
           >
             <div class="mb-2 flex items-center justify-between">
-              <p class="text-[15px] font-semibold text-slate-800">{{ draft.title }}</p>
-              <span class="text-[12px] text-slate-400">{{ draft.updatedAt }}</span>
+              <p class="text-[15px] font-semibold text-warmInk">{{ draft.title }}</p>
+              <span class="text-[12px] text-warmInk/40">{{ draft.updatedAt }}</span>
             </div>
-            <p class="mb-3 text-[14px] leading-relaxed text-slate-600">{{ draft.content }}</p>
+            <p class="mb-3 text-[14px] leading-relaxed text-warmInk/75">{{ draft.content }}</p>
             <div class="flex items-center gap-2">
               <button
                 type="button"
@@ -233,7 +247,7 @@ const handleLogout = async () => {
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-1 rounded-full bg-slate-200 px-3 py-1 text-[12px] text-slate-600 transition-all duration-200 active:scale-[0.97]"
+                class="inline-flex items-center gap-1 rounded-full bg-[#E8E0DA] px-3 py-1 text-[12px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
                 @click="removeDraft(draft.id)"
               >
                 <FileText class="h-3.5 w-3.5" />
@@ -244,7 +258,7 @@ const handleLogout = async () => {
         </div>
         <div
           v-else
-          class="rounded-xl bg-slate-100 py-8 text-center text-[13px] text-slate-500"
+          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
         >
           草稿箱为空，灵感来了随时记下来。
         </div>
@@ -253,7 +267,7 @@ const handleLogout = async () => {
 
     <button
       type="button"
-      class="inline-flex w-full items-center justify-center gap-1 rounded-full bg-white py-2 text-[14px] text-red-500 shadow-ambient transition-all duration-200 active:scale-[0.97]"
+      class="inline-flex w-full items-center justify-center gap-1 rounded-full bg-white/95 py-2 text-[14px] text-red-500 shadow-warm transition-all duration-200 active:scale-[0.97]"
       @click="handleLogout"
     >
       <LogOut class="h-4 w-4" />
@@ -263,14 +277,14 @@ const handleLogout = async () => {
     <div class="grid grid-cols-2 gap-2">
       <button
         type="button"
-        class="inline-flex items-center justify-center gap-1 rounded-full bg-white py-2 text-[13px] text-slate-600 shadow-ambient transition-all duration-200 active:scale-[0.97]"
+        class="inline-flex items-center justify-center gap-1 rounded-full bg-white/95 py-2 text-[13px] text-warmInk/60 shadow-warm transition-all duration-200 active:scale-[0.97]"
       >
         <Heart class="h-4 w-4 text-liked" />
         点赞通知
       </button>
       <button
         type="button"
-        class="inline-flex items-center justify-center gap-1 rounded-full bg-white py-2 text-[13px] text-slate-600 shadow-ambient transition-all duration-200 active:scale-[0.97]"
+        class="inline-flex items-center justify-center gap-1 rounded-full bg-white/95 py-2 text-[13px] text-warmInk/60 shadow-warm transition-all duration-200 active:scale-[0.97]"
       >
         <Bell class="h-4 w-4 text-brand" />
         系统消息

@@ -22,11 +22,25 @@ body {
   min-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #f8f9fb;
-  color: #0f172a;
+  position: relative;
+  background: #fdfbf7;
+  color: #4a3e3e;
+}
+
+/* 极轻微噪点底纹，模拟纸张/棉质感 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #app {
+  position: relative;
+  z-index: 1;
   max-width: 375px;
   min-height: 100dvh;
   margin: 0 auto;

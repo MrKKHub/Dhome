@@ -104,17 +104,24 @@ onUnmounted(() => {
 
 <template>
   <section class="animate-fade-in">
-    <div class="mb-3 rounded-2xl border border-slate-100/50 bg-white p-3 shadow-ambient">
-      <div class="mb-2 flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2">
-        <Search class="h-4 w-4 text-slate-400" />
+    <div class="mb-4">
+      <h2 class="text-2xl font-bold leading-relaxed text-[#5C4B4B]">情绪树洞</h2>
+      <p class="mt-1 text-[13px] leading-relaxed text-[#8B7B7B]">慢一点，让心情有地方落脚</p>
+    </div>
+
+    <div
+      class="mb-3 rounded-[28px] border border-[#F0E8E0]/80 bg-white/90 p-3 shadow-warm backdrop-blur-sm"
+    >
+      <div class="mb-2 flex items-center gap-2 rounded-full bg-apricot/70 px-3 py-2">
+        <Search class="h-4 w-4 text-warmInk/40" />
         <input
           v-model="keyword"
-          class="w-full bg-transparent text-[14px] text-slate-700 outline-none"
-          placeholder="搜索标题、正文、作者"
+          class="w-full bg-transparent text-[14px] text-warmInk outline-none placeholder:text-warmInk/35"
+          placeholder="搜一搜心情碎片…"
         />
       </div>
       <div class="flex items-center justify-between gap-2">
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <button
             v-for="item in filterOptions"
             :key="item"
@@ -122,8 +129,8 @@ onUnmounted(() => {
             class="rounded-full px-3 py-1 text-[12px] transition-all duration-200 active:scale-[0.97]"
             :class="
               activeFilter === item
-                ? 'bg-brand/10 text-brand'
-                : 'bg-slate-100 text-slate-500'
+                ? 'bg-brand/15 font-medium text-[#C45C3E]'
+                : 'bg-[#F5EDE6] text-warmInk/55'
             "
             @click="setFilter(item)"
           >
@@ -132,7 +139,7 @@ onUnmounted(() => {
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[12px] text-slate-500 transition-all duration-200 active:scale-[0.97]"
+          class="inline-flex items-center gap-1 rounded-full bg-[#F5EDE6] px-3 py-1 text-[12px] text-warmInk/55 transition-all duration-200 active:scale-[0.97]"
           @click="activeSort = activeSort === '最新' ? '最热' : '最新'"
         >
           <SlidersHorizontal class="h-3.5 w-3.5" />
@@ -141,7 +148,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="mb-3 flex rounded-full bg-slate-100 p-1">
+    <div class="mb-3 flex rounded-full bg-apricot/80 p-1">
       <button
         v-for="tab in tabs"
         :key="tab"
@@ -149,8 +156,8 @@ onUnmounted(() => {
         class="flex-1 rounded-full px-4 py-2 text-[14px] transition-all duration-200 active:scale-[0.97]"
         :class="
           activeTab === tab
-            ? 'bg-white font-semibold text-slate-900 shadow-sm'
-            : 'text-slate-500'
+            ? 'bg-white font-semibold text-warmInk shadow-sm'
+            : 'text-warmInk/50'
         "
         @click="onTabChange(tab)"
       >
@@ -173,24 +180,23 @@ onUnmounted(() => {
         @load="onLoad"
       >
         <template #loading>
-          <div class="flex items-center justify-center gap-2 py-3 text-[12px] text-slate-400">
-            <van-loading size="14px" />
-            正在探索更多内容...
+          <div class="flex items-center justify-center gap-2 py-3 text-[12px] text-warmInk/45">
+            <van-loading size="14px" color="#FF8C69" />
+            正在收集更多心情卡片…
           </div>
         </template>
 
         <template #finished>
-          <div class="py-3 text-center text-[12px] text-slate-300">—— 已到达宇宙尽头 ——</div>
+          <div class="py-3 text-center text-[12px] text-warmInk/30">—— 就到这里，也很好 ——</div>
         </template>
 
         <div class="overscroll-y-contain">
           <template v-if="currentPosts.length">
-            <div
-              v-for="post in currentPosts"
-              :key="post.id"
-              class="animate-fade-in"
-            >
+            <div class="flex w-full flex-col">
               <PostCard
+                v-for="post in currentPosts"
+                :key="post.id"
+                class="animate-fade-in"
                 :post="post"
                 @like="postStore.toggleLike"
                 @favorite="postStore.toggleFavorite"
@@ -202,9 +208,9 @@ onUnmounted(() => {
 
           <div
             v-else-if="!listLoading"
-            class="rounded-2xl bg-slate-100 py-10 text-center text-[15px] text-slate-500"
+            class="rounded-[28px] bg-apricot/60 py-10 text-center text-[15px] text-warmInk/50"
           >
-            当前频道还没有内容，试试去发布一条新动态。
+            这里还空空的，去写第一条树洞吧。
           </div>
         </div>
       </van-list>
