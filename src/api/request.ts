@@ -9,8 +9,11 @@
 import axios from 'axios'
 import { ACCESS_TOKEN_STORAGE_KEY } from '@/constants/authStorage'
 
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api'
+
 const request = axios.create({
-  baseURL: 'http://localhost:3006',
+  baseURL,
   timeout: 15000,
 })
 

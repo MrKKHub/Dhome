@@ -6,6 +6,16 @@ import { VantResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  server: {
+    proxy: {
+      // 与 VITE_API_BASE_URL=/api 配合：/api/* 原样转发到 Nest（后端已 setGlobalPrefix('api')）
+      '/api': {
+        target: 'http://localhost:3006',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+    },
+  },
   plugins: [
     vue(),
     AutoImport({

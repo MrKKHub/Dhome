@@ -381,6 +381,9 @@ export const usePostStore = defineStore('post', () => {
       const loadedCount = nextPage * pageSize.value
       page.value = nextPage
       finished.value = total === 0 || loadedCount >= total
+    } catch {
+      // 避免接口失败时 van-list 一直认为未 finished 而反复触发 @load
+      finished.value = true
     } finally {
       loading.value = false
       listFetchInFlight.value = false
@@ -388,11 +391,15 @@ export const usePostStore = defineStore('post', () => {
   }
 
   const refreshFeed = async () => {
-    await fetchPosts()
-    page.value = 0
-    finished.value = false
-    listFetchInFlight.value = false
-    await fetchNextPage()
+    try {
+      await fetchPosts()
+      page.value = 0
+      finished.value = false
+      listFetchInFlight.value = false
+      await fetchNextPage()
+    } catch {
+      finished.value = true
+    }
   }
 
   return {
