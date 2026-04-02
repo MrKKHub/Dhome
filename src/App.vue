@@ -71,7 +71,13 @@ const goBack = () => {
       </div>
     </header>
 
-    <main :class="hideShellOnAuth ? 'px-4 pb-6 pt-4' : 'px-4 pb-28 pt-16'">
+    <main
+      :class="
+        hideShellOnAuth
+          ? 'px-4 pb-6 pt-4'
+          : 'pb-28 pt-16 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]'
+      "
+    >
       <RouterView v-slot="{ Component }">
         <Transition name="fade" mode="out-in">
           <component :is="Component" />

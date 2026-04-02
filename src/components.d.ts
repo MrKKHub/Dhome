@@ -12,7 +12,9 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
+    PickupMoodModal: typeof import('./components/PickupMoodModal.vue')['default']
     PostCard: typeof import('./components/PostCard.vue')['default']
+    PostListSkeleton: typeof import('./components/PostListSkeleton.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     VanField: typeof import('vant/es')['Field']

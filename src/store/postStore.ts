@@ -4,11 +4,13 @@ import request from '@/api/request'
 import type { PostMood } from '@/constants/moods'
 import { MOOD_OPTIONS, randomTreeNickname } from '@/constants/moods'
 import { useUserStore } from '@/store/userStore'
+import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 export type { PostMood } from '@/constants/moods'
 
 export interface PostItem {
   id: number
+  /** 已解析、可直接用于 img src（与资料页 resolveAvatarUrl 一致） */
   avatar: string
   nickname: string
   title: string
@@ -128,13 +130,16 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     raw.user_nickname ??
     raw.user?.nickname ??
     '树洞旅人'
-  const avatar =
+  const rawAvatar =
     raw.author?.avatar ??
     raw.avatar ??
     raw.user_avatar ??
     raw.user?.avatar ??
     raw.user?.avatar_url ??
-    `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(nick)}`
+    null
+  const trimmed =
+    typeof rawAvatar === 'string' && rawAvatar.trim() ? rawAvatar.trim() : null
+  const avatar = resolveAvatarUrl(trimmed, nick)
   const created =
     raw.created_at ?? raw.createdAt ?? new Date().toISOString()
   const createdLabel =
@@ -402,6 +407,30 @@ export const usePostStore = defineStore('post', () => {
     }
   }
 
+  /** 随机拾起一条他人心情（需登录，GET /posts/random） */
+  const fetchRandomPickup = async (): Promise<PostItem> => {
+    const res = await request.get<PostApiRow>('/posts/random')
+    const row = res.data
+    if (!row || row.id == null || row.id === '') {
+      throw new Error('随机心情数据为空')
+    }
+    const uid = useUserStore().userInfo?.id ?? null
+    return mapPostFromApi(row, {
+      isMine:
+        uid != null &&
+        String(row.authorId ?? row.author?.id ?? '') === String(uid),
+    })
+  }
+
+  /** 本地资料头像更新后，同步首页/详情里「我的帖子」展示，避免等重新拉列表 */
+  const patchMineAvatarDisplay = (displayUrl: string) => {
+    for (const p of posts.value) {
+      if (p.isMine) {
+        p.avatar = displayUrl
+      }
+    }
+  }
+
   return {
     posts,
     page,
@@ -423,5 +452,7 @@ export const usePostStore = defineStore('post', () => {
     setFeedChannel,
     fetchNextPage,
     refreshFeed,
+    fetchRandomPickup,
+    patchMineAvatarDisplay,
   }
 })

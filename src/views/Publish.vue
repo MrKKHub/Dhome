@@ -2,7 +2,12 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { closeToast, showLoadingToast, showToast } from 'vant'
+import {
+  closeToast,
+  showLoadingToast,
+  showSuccessToast,
+  showToast,
+} from 'vant'
 import { uploadPostImages } from '@/api/upload'
 import { MOOD_BADGE_CLASS, MOOD_OPTIONS } from '@/constants/moods'
 import type { PostMood } from '@/constants/moods'
@@ -24,6 +29,7 @@ const followsOnly = ref(false)
 const selectedMood = ref<PostMood | ''>('')
 const imageSlots = ref<ImageSlot[]>([])
 const submitting = ref(false)
+const formExiting = ref(false)
 
 const uploadImages = (event: Event) => {
   const input = event.target as HTMLInputElement
@@ -131,8 +137,14 @@ const submitPost = async () => {
     if (loader) {
       closeToast()
     }
+    formExiting.value = true
+    await new Promise<void>((r) => setTimeout(r, 560))
     resetForm()
-    showToast('已轻轻放进树洞～')
+    formExiting.value = false
+    showSuccessToast({
+      message: '你的心事已轻轻落入树洞～',
+      duration: 2200,
+    })
     router.push('/')
   } catch (e) {
     if (loader) {
@@ -160,6 +172,7 @@ const submitPost = async () => {
 
     <div
       class="space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
+      :class="formExiting ? 'publish-form-exit' : ''"
     >
       <div>
         <p class="mb-2 text-[13px] font-medium text-warmInk/70">此刻心情</p>
@@ -248,7 +261,7 @@ const submitPost = async () => {
 
       <button
         type="button"
-        class="h-12 w-full rounded-full bg-gradient-to-r from-brand to-[#FFAB90] text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97] disabled:opacity-60"
+        class="flex min-h-11 w-full items-center justify-center rounded-full bg-gradient-to-r from-brand to-[#FFAB90] py-3.5 text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97] disabled:opacity-60"
         :disabled="submitting"
         @click="submitPost"
       >
@@ -257,3 +270,18 @@ const submitPost = async () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.publish-form-exit {
+  pointer-events: none;
+  animation: publishCeremonyOut 0.58s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes publishCeremonyOut {
+  to {
+    opacity: 0;
+    transform: translateY(-1.75rem) scale(0.985);
+    filter: blur(2px);
+  }
+}
+</style>

@@ -14,6 +14,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path,
       },
+      // 头像等静态资源在 /uploads/*，与 API 前缀分离；若前端只用相对路径 /uploads/... 需此条
+      '/uploads': {
+        target: 'http://localhost:3006',
+        changeOrigin: true,
+      },
     },
   },
   plugins: [

@@ -20,6 +20,19 @@ export const MOOD_BADGE_CLASS: Record<PostMood, string> = {
 }
 
 /**
+ * 卡片主底色（低饱和、可 transition-colors 平滑过渡）
+ * 参考：平静偏灰绿感、开心偏奶油黄、忧郁偏雾蓝
+ */
+export const MOOD_CARD_SURFACE_COLOR: Record<PostMood, string> = {
+  浮躁: '#FFF5F0',
+  小确幸: '#FFFBF0',
+  emo: '#EEF6FF',
+  平静: '#F6F8F7',
+  期待: '#FFF8F6',
+  疲惫: '#F5F3EF',
+}
+
+/**
  * 卡片内极淡水彩晕染层（两团模糊色块，模拟棉麻纸上的水彩）
  * 每项为 [右上主晕染 class, 左下辅晕染 class]
  */

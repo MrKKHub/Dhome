@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { HeartHandshake, MessageCircle, Share2, Sparkles, Star } from 'lucide-vue-next'
-import { MOOD_BADGE_CLASS, MOOD_WATERCOLOR_LAYERS } from '@/constants/moods'
+import {
+  MOOD_BADGE_CLASS,
+  MOOD_CARD_SURFACE_COLOR,
+  MOOD_WATERCOLOR_LAYERS,
+} from '@/constants/moods'
 import type { PostItem } from '@/store/postStore'
 
 const props = defineProps<{
@@ -27,6 +31,9 @@ const imageClass = computed(() => {
 
 const moodClass = computed(() => MOOD_BADGE_CLASS[props.post.mood])
 const watercolorLayers = computed(() => MOOD_WATERCOLOR_LAYERS[props.post.mood])
+const moodSurfaceColor = computed(
+  () => MOOD_CARD_SURFACE_COLOR[props.post.mood],
+)
 
 const showLeafDecor = computed(() => props.post.id % 2 === 0)
 
@@ -68,9 +75,10 @@ const openDetail = () => emit('open', props.post.id)
     class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-[#E8DDD4]/90 shadow-warm transition-[transform,box-shadow] duration-300 ease-out hover:scale-[1.01] hover:shadow-[0_18px_48px_-12px_rgba(196,164,132,0.22)] active:scale-[0.98]"
     @click="openDetail"
   >
-    <!-- 暖色棉麻感底 + 水彩晕染 -->
+    <!-- 心情主色（实色 + transition-colors，叠加水彩晕染） -->
     <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#FFF9F5] via-[#FFF6EF] to-[#FDF3EC]"
+      class="pointer-events-none absolute inset-0 transition-colors duration-700 ease-in-out"
+      :style="{ backgroundColor: moodSurfaceColor }"
       aria-hidden="true"
     />
     <div

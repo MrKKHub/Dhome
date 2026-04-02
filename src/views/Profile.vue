@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import {
   Bell,
   ChevronRight,
@@ -16,6 +16,7 @@ import { useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
+import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
 
@@ -30,6 +31,7 @@ const router = useRouter()
 const store = usePostStore()
 const userStore = useUserStore()
 const activeTab = ref<CenterTab>('我的发布')
+const avatarFileInput = useTemplateRef<HTMLInputElement>('avatarFileInput')
 
 const draftList = ref<DraftItem[]>([
   {
@@ -60,6 +62,11 @@ const displayName = computed(() => {
   return u ? u.nickname : '访客'
 })
 
+const avatarSrc = computed(() => {
+  const u = userStore.userInfo
+  return resolveAvatarUrl(u?.avatar, u?.email ?? 'You')
+})
+
 const accountLine = computed(() => {
   if (!userStore.isLoggedIn) {
     return '未登录，登录后解锁完整能力'
@@ -86,6 +93,32 @@ const setCenterTab = (tab: CenterTab) => {
 const removeDraft = (id: number) => {
   draftList.value = draftList.value.filter((item) => item.id !== id)
   showToast('草稿已删除')
+}
+
+const triggerAvatarPick = () => {
+  if (!userStore.isLoggedIn) {
+    router.push('/login?redirect=/profile')
+    return
+  }
+  avatarFileInput.value?.click()
+}
+
+const onAvatarFileChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !userStore.isLoggedIn) return
+  const r = await userStore.uploadAvatar(file)
+  showToast(r.message)
+  if (r.ok) {
+    const u = userStore.userInfo
+    if (u) {
+      store.patchMineAvatarDisplay(resolveAvatarUrl(u.avatar, u.email))
+    }
+  }
+  if (!r.ok && r.message.includes('登录')) {
+    router.push('/login?redirect=/profile')
+  }
 }
 
 const handleLogout = async () => {
@@ -115,11 +148,32 @@ const handleLogout = async () => {
       class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
     >
       <div class="mb-3 flex items-center gap-3">
-        <img
-          src="https://api.dicebear.com/9.x/notionists/svg?seed=You"
-          alt="you"
-          class="h-14 w-14 rounded-full border border-[#F0E8E0]"
+        <input
+          ref="avatarFileInput"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="onAvatarFileChange"
         />
+        <button
+          type="button"
+          class="relative shrink-0 rounded-full border border-[#F0E8E0] transition-transform duration-200 active:scale-[0.94] disabled:pointer-events-none"
+          :disabled="userStore.uploadingAvatar"
+          aria-label="更换头像"
+          @click="triggerAvatarPick"
+        >
+          <img
+            :src="avatarSrc"
+            alt="头像"
+            class="h-14 w-14 rounded-full object-cover"
+          />
+          <span
+            v-if="userStore.uploadingAvatar"
+            class="absolute inset-0 flex items-center justify-center rounded-full bg-warmInk/25 text-[10px] font-medium text-white"
+          >
+            …
+          </span>
+        </button>
         <div>
           <h2 class="text-[17px] font-semibold leading-snug text-warmInk">
             {{ displayName }}

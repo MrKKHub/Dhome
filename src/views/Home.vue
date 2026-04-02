@@ -2,9 +2,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
-import { Search, SlidersHorizontal } from 'lucide-vue-next'
+import axios from 'axios'
+import { Search, Shell, SlidersHorizontal } from 'lucide-vue-next'
+import { showToast } from 'vant'
+import PickupMoodModal from '@/components/PickupMoodModal.vue'
 import PostCard from '@/components/PostCard.vue'
-import { usePostStore } from '@/store/postStore'
+import PostListSkeleton from '@/components/PostListSkeleton.vue'
+import { usePostStore, type PostItem } from '@/store/postStore'
+import { useUserStore } from '@/store/userStore'
 
 const tabs = ['推荐', '关注']
 const activeTab = ref('推荐')
@@ -20,8 +25,32 @@ const scrollTopCache = ref<Record<string, number>>({
 const lastTab = ref('推荐')
 
 const postStore = usePostStore()
+const userStore = useUserStore()
 const { loading: listLoading, finished: listFinished } = storeToRefs(postStore)
 const router = useRouter()
+
+const pickupOpen = ref(false)
+const pickupLoading = ref(false)
+const pickupPost = ref<PostItem | null>(null)
+
+const showSkeleton = computed(
+  () => postStore.posts.length === 0 && postStore.loading,
+)
+
+const axiosMessage = (e: unknown, fallback: string): string => {
+  if (!axios.isAxiosError(e)) {
+    return fallback
+  }
+  const data = e.response?.data as { message?: string | string[] } | undefined
+  const m = data?.message
+  if (Array.isArray(m) && m[0]) {
+    return m[0]
+  }
+  if (typeof m === 'string' && m.trim()) {
+    return m
+  }
+  return fallback
+}
 
 const currentPosts = computed(() => {
   let list = postStore.visibleFeedPosts
@@ -51,6 +80,41 @@ const currentPosts = computed(() => {
 })
 
 const openPost = (id: number) => router.push(`/detail/${id}`)
+
+const openPickup = async () => {
+  if (!userStore.isLoggedIn || !userStore.token) {
+    showToast('登录后，才能拾起他人的心情哦')
+    router.push({ path: '/login', query: { redirect: '/' } })
+    return
+  }
+  pickupOpen.value = true
+  pickupLoading.value = true
+  pickupPost.value = null
+  try {
+    pickupPost.value = await postStore.fetchRandomPickup()
+  } catch (e) {
+    pickupOpen.value = false
+    if (axios.isAxiosError(e) && e.response?.status === 401) {
+      showToast('登录已过期，请重新登录')
+      userStore.logout()
+      router.push({ path: '/login', query: { redirect: '/' } })
+      return
+    }
+    showToast(axiosMessage(e, '暂时拾不到心情，稍后再试～'))
+  } finally {
+    pickupLoading.value = false
+  }
+}
+
+const closePickup = () => {
+  pickupOpen.value = false
+  pickupPost.value = null
+}
+
+const openPickupDetail = (id: number) => {
+  closePickup()
+  openPost(id)
+}
 const setFilter = (filter: string) => {
   activeFilter.value = filter
 }
@@ -103,10 +167,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="animate-fade-in">
-    <div class="mb-4">
+  <section
+    class="animate-fade-in home-feed-root mx-auto w-full max-w-[min(100%,26rem)] px-1 sm:px-0"
+  >
+    <div class="mb-4 px-1">
       <h2 class="text-2xl font-bold leading-relaxed text-[#5C4B4B]">情绪树洞</h2>
       <p class="mt-1 text-[13px] leading-relaxed text-[#8B7B7B]">慢一点，让心情有地方落脚</p>
+    </div>
+
+    <div class="mb-4 px-1">
+      <button
+        type="button"
+        class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#E8DDD4]/90 bg-white/88 px-5 py-3 text-[14px] font-medium text-[#6B5A5A] shadow-warm backdrop-blur-sm transition-all duration-200 active:scale-[0.98]"
+        @click="openPickup"
+      >
+        <Shell class="h-[18px] w-[18px] shrink-0 text-brand" stroke-width="2" />
+        捡起一片心情
+      </button>
     </div>
 
     <div
@@ -190,8 +267,10 @@ onUnmounted(() => {
           <div class="py-3 text-center text-[12px] text-warmInk/30">—— 就到这里，也很好 ——</div>
         </template>
 
-        <div class="overscroll-y-contain">
-          <template v-if="currentPosts.length">
+        <div class="overscroll-y-contain px-1">
+          <PostListSkeleton v-if="showSkeleton" :count="3" />
+
+          <template v-else-if="currentPosts.length">
             <div class="flex w-full flex-col">
               <PostCard
                 v-for="post in currentPosts"
@@ -207,7 +286,7 @@ onUnmounted(() => {
           </template>
 
           <div
-            v-else-if="!listLoading"
+            v-else-if="!listLoading && !showSkeleton"
             class="rounded-[28px] bg-apricot/60 py-10 text-center text-[15px] text-warmInk/50"
           >
             这里还空空的，去写第一条树洞吧。
@@ -215,5 +294,13 @@ onUnmounted(() => {
         </div>
       </van-list>
     </van-pull-refresh>
+
+    <PickupMoodModal
+      :open="pickupOpen"
+      :loading="pickupLoading"
+      :post="pickupPost"
+      @close="closePickup"
+      @open-detail="openPickupDetail"
+    />
   </section>
 </template>

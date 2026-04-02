@@ -11,6 +11,8 @@ export interface UserInfo {
   id: string
   email: string
   nickname: string
+  /** 后端存相对路径，如 /uploads/avatars/xxx.jpg */
+  avatar?: string | null
 }
 
 export interface LoginPayload {
@@ -79,6 +81,7 @@ export const useUserStore = defineStore('user', () => {
   const token = ref(session?.token ?? '')
   const userInfo = ref<UserInfo | null>(session?.user ?? null)
   const loading = ref(false)
+  const uploadingAvatar = ref(false)
 
   const validatePasswordStrength = (password: string) => passwordReg.test(password)
 
@@ -180,14 +183,58 @@ export const useUserStore = defineStore('user', () => {
     clearSessionStorage()
   }
 
+  /** 上传头像：成功后合并用户信息并写回 localStorage */
+  const uploadAvatar = async (file: File): Promise<AuthResult> => {
+    if (!token.value || !userInfo.value) {
+      return { ok: false, message: '请先登录后再更换头像' }
+    }
+    if (uploadingAvatar.value) {
+      return { ok: false, message: '请稍候…' }
+    }
+    uploadingAvatar.value = true
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const res = await request.post<{
+        id: string
+        email: string
+        nickname: string
+        avatar: string | null
+      }>('/user/upload-avatar', body)
+
+      const u = res.data
+      if (!u?.id) {
+        return { ok: false, message: '上传响应异常，请稍后再试' }
+      }
+      const next: UserInfo = {
+        id: u.id,
+        email: u.email,
+        nickname: u.nickname,
+        avatar: u.avatar,
+      }
+      userInfo.value = next
+      persistSession(token.value, next)
+      return { ok: true, message: '头像已更新' }
+    } catch (e) {
+      return {
+        ok: false,
+        message: axiosErrorMessage(e, '头像上传失败，请稍后再试'),
+      }
+    } finally {
+      uploadingAvatar.value = false
+    }
+  }
+
   return {
     isLoggedIn,
     token,
     userInfo,
     loading,
+    uploadingAvatar,
     validatePasswordStrength,
     login,
     register,
     logout,
+    uploadAvatar,
   }
 })
