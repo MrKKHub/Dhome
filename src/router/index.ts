@@ -29,12 +29,23 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/Login.vue'),
     },
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('@/views/Notifications.vue'),
+    },
   ],
 })
 
 router.beforeEach((to) => {
   const userStore = useUserStore()
   if (to.path === '/publish' && !userStore.isLoggedIn) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
+  }
+  if (to.path === '/notifications' && !userStore.isLoggedIn) {
     return {
       path: '/login',
       query: { redirect: to.fullPath },

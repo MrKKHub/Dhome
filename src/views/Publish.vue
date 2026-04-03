@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import {
@@ -8,6 +8,7 @@ import {
   showSuccessToast,
   showToast,
 } from 'vant'
+import request from '@/api/request'
 import { uploadPostImages } from '@/api/upload'
 import { MOOD_BADGE_CLASS, MOOD_OPTIONS } from '@/constants/moods'
 import type { PostMood } from '@/constants/moods'
@@ -30,6 +31,30 @@ const selectedMood = ref<PostMood | ''>('')
 const imageSlots = ref<ImageSlot[]>([])
 const submitting = ref(false)
 const formExiting = ref(false)
+/** 森林匿名：勾选后表单泛绿色荧光，展示预览昵称 */
+const publishAnonymous = ref(false)
+const forestPreviewName = ref('')
+const forestPreviewLoading = ref(false)
+
+watch(publishAnonymous, async (on) => {
+  if (!on || !userStore.isLoggedIn) {
+    forestPreviewName.value = ''
+    return
+  }
+  forestPreviewLoading.value = true
+  try {
+    const res = await request.get<{
+      success?: boolean
+      anonymousName?: string
+    }>('/forest/anonymous-preview')
+    forestPreviewName.value =
+      res.data?.anonymousName?.trim() || '森林访客'
+  } catch {
+    forestPreviewName.value = '森林访客'
+  } finally {
+    forestPreviewLoading.value = false
+  }
+})
 
 const uploadImages = (event: Event) => {
   const input = event.target as HTMLInputElement
@@ -75,6 +100,8 @@ const resetForm = () => {
   content.value = ''
   selectedMood.value = ''
   followsOnly.value = false
+  publishAnonymous.value = false
+  forestPreviewName.value = ''
   imageSlots.value.forEach((slot) => URL.revokeObjectURL(slot.preview))
   imageSlots.value = []
 }
@@ -132,6 +159,7 @@ const submitPost = async () => {
       images: urls,
       mood: selectedMood.value,
       followsOnly: followsOnly.value,
+      isAnonymous: publishAnonymous.value,
     })
 
     if (loader) {
@@ -171,8 +199,11 @@ const submitPost = async () => {
     </div>
 
     <div
-      class="space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
-      :class="formExiting ? 'publish-form-exit' : ''"
+      class="space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm transition-[box-shadow,border-color] duration-500"
+      :class="[
+        formExiting ? 'publish-form-exit' : '',
+        publishAnonymous ? 'forest-veil-glow' : '',
+      ]"
     >
       <div>
         <p class="mb-2 text-[13px] font-medium text-warmInk/70">此刻心情</p>
@@ -195,9 +226,33 @@ const submitPost = async () => {
         </div>
       </div>
 
+      <label class="flex cursor-pointer items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3">
+        <span class="text-[14px] font-medium text-warmInk/80">森林隐身发布</span>
+        <input
+          v-model="publishAnonymous"
+          type="checkbox"
+          class="h-4 w-4 accent-emerald-600"
+          :disabled="submitting"
+        />
+      </label>
+
+      <Transition name="forest-hint">
+        <div
+          v-if="publishAnonymous"
+          class="rounded-2xl border border-emerald-200/80 bg-emerald-50/90 px-3 py-2.5 text-[13px] leading-relaxed text-emerald-900/85"
+        >
+          <template v-if="forestPreviewLoading">正在为你披上隐身衣…</template>
+          <template v-else>
+            已为你披上隐身衣，现在的身份是：「{{ forestPreviewName }}」
+            <span class="block text-[11px] text-emerald-800/60 mt-1">正式发布时将重新随机一次森林名与图标</span>
+          </template>
+        </div>
+      </Transition>
+
       <input
         v-model="title"
         class="w-full rounded-2xl bg-apricot/80 px-3 py-3 text-[15px] text-warmInk outline-none transition-shadow duration-200 placeholder:text-warmInk/35 focus:bg-white focus:shadow-[0_0_0_3px_rgba(255,140,105,0.12)]"
+        :class="publishAnonymous ? 'forest-input-glow' : ''"
         maxlength="40"
         placeholder="给情绪起个短短的标题…"
       />
@@ -205,6 +260,7 @@ const submitPost = async () => {
       <textarea
         v-model="content"
         class="min-h-32 w-full rounded-2xl bg-apricot/80 px-3 py-3 text-[15px] leading-relaxed text-warmInk/85 outline-none transition-shadow duration-200 placeholder:text-warmInk/35 focus:bg-white focus:shadow-[0_0_0_3px_rgba(255,140,105,0.12)]"
+        :class="publishAnonymous ? 'forest-input-glow' : ''"
         maxlength="300"
         placeholder="慢慢写，树洞会安静听完…"
       ></textarea>
@@ -272,6 +328,31 @@ const submitPost = async () => {
 </template>
 
 <style scoped>
+/* 森林屏障：淡绿荧光描边 */
+.forest-veil-glow {
+  border-color: rgba(134, 239, 172, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(74, 222, 128, 0.2),
+    0 0 28px rgba(34, 197, 94, 0.12);
+}
+
+.forest-input-glow:focus {
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.22),
+    0 0 18px rgba(34, 197, 94, 0.1);
+}
+
+.forest-hint-enter-active,
+.forest-hint-leave-active {
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.forest-hint-enter-from,
+.forest-hint-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .publish-form-exit {
   pointer-events: none;
   animation: publishCeremonyOut 0.58s cubic-bezier(0.4, 0, 0.2, 1) forwards;

@@ -22,6 +22,15 @@ request.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // FormData 必须由浏览器带 multipart boundary；去掉可能被默认带入的 Content-Type
+  if (config.data instanceof FormData) {
+    const h = config.headers
+    if (h && typeof h.delete === 'function') {
+      h.delete('Content-Type')
+    } else if (h && 'Content-Type' in h) {
+      delete (h as Record<string, unknown>)['Content-Type']
+    }
+  }
   return config
 })
 

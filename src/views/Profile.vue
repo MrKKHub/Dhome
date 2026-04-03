@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import {
   Bell,
   ChevronRight,
@@ -12,10 +12,14 @@ import {
   WalletCards,
 } from 'lucide-vue-next'
 import { showConfirmDialog, showToast } from 'vant'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
+import request from '@/api/request'
 import PostCard from '@/components/PostCard.vue'
+import { useAppToast } from '@/composables/useAppToast'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
+import { compressImageToWebp } from '@/utils/compressImage'
 import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
@@ -29,7 +33,9 @@ interface DraftItem {
 
 const router = useRouter()
 const store = usePostStore()
+const { huggingPostId, favoritingPostId } = storeToRefs(store)
 const userStore = useUserStore()
+const toast = useAppToast()
 const activeTab = ref<CenterTab>('我的发布')
 const avatarFileInput = useTemplateRef<HTMLInputElement>('avatarFileInput')
 
@@ -76,16 +82,79 @@ const accountLine = computed(() => {
   return acc ? `邮箱 ${acc}` : '邮箱'
 })
 
-const settings = [
+const settings: Array<{
+  icon: typeof UserRound
+  label: string
+  desc: string
+  action?: 'notifications'
+}> = [
   { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
-  { icon: Bell, label: '消息通知', desc: '评论、点赞、私信提醒' },
+  {
+    icon: Bell,
+    label: '消息通知',
+    desc: '评论、点赞、关注提醒',
+    action: 'notifications',
+  },
   { icon: WalletCards, label: '隐私设置', desc: '动态可见范围、黑名单' },
   { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
 ]
 
 const centerTabs: CenterTab[] = ['我的发布', '我的收藏', '草稿箱']
 
-const openPost = (id: number) => router.push(`/detail/${id}`)
+const followerCount = ref(0)
+const followingCount = ref(0)
+const postsLast7DaysCount = ref(0)
+const moodLast7Days = ref<Array<{ mood: string; count: number }>>([])
+
+async function loadProfileCounts() {
+  const id = userStore.userInfo?.id
+  if (!id) {
+    followerCount.value = 0
+    followingCount.value = 0
+    postsLast7DaysCount.value = 0
+    moodLast7Days.value = []
+    return
+  }
+  try {
+    const res = await request.get<{
+      followerCount?: number
+      followingCount?: number
+      postsLast7DaysCount?: number
+      moodLast7Days?: Array<{ mood: string; count: number }>
+    }>(`/user/profile/${id}`)
+    followerCount.value = res.data?.followerCount ?? 0
+    followingCount.value = res.data?.followingCount ?? 0
+    postsLast7DaysCount.value = res.data?.postsLast7DaysCount ?? 0
+    moodLast7Days.value = Array.isArray(res.data?.moodLast7Days)
+      ? res.data!.moodLast7Days!
+      : []
+  } catch {
+    followerCount.value = 0
+    followingCount.value = 0
+    postsLast7DaysCount.value = 0
+    moodLast7Days.value = []
+  }
+}
+
+const onSettingsRow = (item: (typeof settings)[number]) => {
+  if (item.action === 'notifications') {
+    if (!userStore.isLoggedIn) {
+      router.push('/login?redirect=/notifications')
+      return
+    }
+    router.push('/notifications')
+  }
+}
+
+onMounted(loadProfileCounts)
+watch(
+  () => userStore.userInfo?.id,
+  () => {
+    loadProfileCounts()
+  },
+)
+
+const openPost = (id: string) => router.push(`/detail/${encodeURIComponent(id)}`)
 const setCenterTab = (tab: CenterTab) => {
   activeTab.value = tab
 }
@@ -108,8 +177,19 @@ const onAvatarFileChange = async (e: Event) => {
   const file = input.files?.[0]
   input.value = ''
   if (!file || !userStore.isLoggedIn) return
-  const r = await userStore.uploadAvatar(file)
-  showToast(r.message)
+  let toSend = file
+  try {
+    const blob = await compressImageToWebp(file, 400, 0.8)
+    toSend = new File([blob], 'avatar.webp', { type: 'image/webp' })
+  } catch {
+    toSend = file
+  }
+  const r = await userStore.uploadAvatar(toSend)
+  if (r.ok) {
+    toast.success(r.message)
+  } else {
+    toast.fail(r.message)
+  }
   if (r.ok) {
     const u = userStore.userInfo
     if (u) {
@@ -185,11 +265,11 @@ const handleLogout = async () => {
       </div>
       <div class="grid grid-cols-3 gap-2 text-center">
         <div class="rounded-xl bg-apricot/60 py-2">
-          <p class="text-[17px] font-semibold text-warmInk">36</p>
+          <p class="text-[17px] font-semibold text-warmInk">{{ followingCount }}</p>
           <p class="text-[12px] text-warmInk/40">关注</p>
         </div>
         <div class="rounded-xl bg-apricot/60 py-2">
-          <p class="text-[17px] font-semibold text-warmInk">128</p>
+          <p class="text-[17px] font-semibold text-warmInk">{{ followerCount }}</p>
           <p class="text-[12px] text-warmInk/40">粉丝</p>
         </div>
         <div class="rounded-xl bg-apricot/60 py-2">
@@ -200,6 +280,27 @@ const handleLogout = async () => {
     </div>
 
     <div
+      v-if="userStore.isLoggedIn"
+      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
+    >
+      <h3 class="mb-2 text-[15px] font-semibold text-warmInk">本周心情统计</h3>
+      <p class="mb-3 text-[12px] text-warmInk/45">
+        近 7 天你共记录了 {{ postsLast7DaysCount }} 条心情。
+      </p>
+      <ul v-if="moodLast7Days.length" class="space-y-2">
+        <li
+          v-for="row in moodLast7Days"
+          :key="row.mood"
+          class="flex items-center justify-between rounded-xl bg-apricot/50 px-3 py-2 text-[13px]"
+        >
+          <span class="font-medium text-warmInk">{{ row.mood }}</span>
+          <span class="tabular-nums text-warmInk/55">{{ row.count }} 次</span>
+        </li>
+      </ul>
+      <p v-else class="text-[13px] text-warmInk/40">本周还没有新记录，去发一条树洞吧。</p>
+    </div>
+
+    <div
       class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-2 shadow-warm backdrop-blur-sm"
     >
       <button
@@ -207,6 +308,7 @@ const handleLogout = async () => {
         :key="item.label"
         type="button"
         class="mb-2 flex w-full items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3 text-left transition-all duration-200 last:mb-0 active:scale-[0.97]"
+        @click="onSettingsRow(item)"
       >
         <div class="flex items-center gap-2">
           <component :is="item.icon" class="h-4 w-4 text-warmInk/45" />
@@ -245,6 +347,8 @@ const handleLogout = async () => {
             v-for="post in myPosts"
             :key="post.id"
             :post="post"
+            :hug-disabled="huggingPostId === post.id"
+            :favorite-disabled="favoritingPostId === post.id"
             @like="store.toggleLike"
             @favorite="store.toggleFavorite"
             @open="openPost"
@@ -265,6 +369,8 @@ const handleLogout = async () => {
             v-for="post in myFavorites"
             :key="post.id"
             :post="post"
+            :hug-disabled="huggingPostId === post.id"
+            :favorite-disabled="favoritingPostId === post.id"
             @like="store.toggleLike"
             @favorite="store.toggleFavorite"
             @open="openPost"

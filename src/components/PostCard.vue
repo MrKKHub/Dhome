@@ -1,22 +1,45 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { HeartHandshake, MessageCircle, Share2, Sparkles, Star } from 'lucide-vue-next'
+import {
+  HeartHandshake,
+  Leaf,
+  MessageCircle,
+  Share2,
+  Sparkles,
+  Star,
+} from 'lucide-vue-next'
+import ForestAnonymousAvatar from '@/components/ForestAnonymousAvatar.vue'
 import {
   MOOD_BADGE_CLASS,
   MOOD_CARD_SURFACE_COLOR,
   MOOD_WATERCOLOR_LAYERS,
 } from '@/constants/moods'
+import { usePostStore } from '@/store/postStore'
+import { useUserStore } from '@/store/userStore'
+import { playLeafConfetti } from '@/utils/leafConfetti'
 import type { PostItem } from '@/store/postStore'
 
-const props = defineProps<{
-  post: PostItem
-}>()
+const postStore = usePostStore()
+const userStore = useUserStore()
+const leafBtnRef = ref<HTMLButtonElement | null>(null)
+
+const props = withDefaults(
+  defineProps<{
+    post: PostItem
+    hugDisabled?: boolean
+    favoriteDisabled?: boolean
+  }>(),
+  {
+    hugDisabled: false,
+    favoriteDisabled: false,
+  },
+)
 
 const emit = defineEmits<{
-  like: [id: number]
-  favorite: [id: number]
-  comment: [id: number]
-  open: [id: number]
+  like: [id: string]
+  favorite: [id: string]
+  comment: [id: string]
+  open: [id: string]
 }>()
 
 const imageClass = computed(() => {
@@ -35,7 +58,9 @@ const moodSurfaceColor = computed(
   () => MOOD_CARD_SURFACE_COLOR[props.post.mood],
 )
 
-const showLeafDecor = computed(() => props.post.id % 2 === 0)
+const showLeafDecor = computed(
+  () => (props.post.id.length + (props.post.id.charCodeAt(0) ?? 0)) % 2 === 0,
+)
 
 const hugRipple = ref(false)
 const listenRipple = ref(false)
@@ -43,6 +68,9 @@ let hugTimer: ReturnType<typeof setTimeout> | null = null
 let listenTimer: ReturnType<typeof setTimeout> | null = null
 
 const triggerHug = () => {
+  if (props.hugDisabled) {
+    return
+  }
   emit('like', props.post.id)
   hugRipple.value = true
   if (hugTimer) {
@@ -66,8 +94,35 @@ const triggerListen = () => {
   }, 900)
 }
 
-const toggleFavorite = () => emit('favorite', props.post.id)
+const toggleFavorite = () => {
+  if (props.favoriteDisabled) {
+    return
+  }
+  emit('favorite', props.post.id)
+}
 const openDetail = () => emit('open', props.post.id)
+
+/** 非匿名且已登录、非本人：展示「种下思念」绿叶关注 */
+const showForestFollow = computed(
+  () =>
+    userStore.isLoggedIn &&
+    !props.post.isMine &&
+    !props.post.isAnonymous &&
+    !!props.post.authorId,
+)
+
+const onForestFollowClick = async (e: MouseEvent) => {
+  e.stopPropagation()
+  const aid = props.post.authorId
+  if (!aid) {
+    return
+  }
+  const was = props.post.followingAuthor ?? false
+  const next = await postStore.toggleFollowOnPost(aid, props.post.id)
+  if (next === true && !was) {
+    void playLeafConfetti(leafBtnRef.value)
+  }
+}
 </script>
 
 <template>
@@ -121,13 +176,43 @@ const openDetail = () => emit('open', props.post.id)
     <div class="relative z-[1] p-4">
       <div class="mb-3 flex items-start justify-between gap-2">
         <div class="flex min-w-0 flex-1 items-center gap-2">
+          <ForestAnonymousAvatar
+            v-if="post.isAnonymous"
+            :icon-key="post.anonymousAvatarKey"
+            :size="40"
+            class="shrink-0 border border-[#C8E6C9]"
+          />
           <img
+            v-else
             :src="post.avatar"
             :alt="post.nickname"
             class="h-10 w-10 shrink-0 rounded-full border border-[#E5D9CF] object-cover"
           />
           <div class="min-w-0">
-            <p class="truncate text-[15px] font-semibold text-[#5C4B4B]">{{ post.nickname }}</p>
+            <div class="flex min-w-0 items-center gap-1.5">
+              <p class="truncate text-[15px] font-semibold text-[#5C4B4B]">
+                {{ post.nickname }}
+              </p>
+              <button
+                v-if="showForestFollow"
+                ref="leafBtnRef"
+                type="button"
+                title="种下思念"
+                class="shrink-0 rounded-full p-1 transition-transform active:scale-90"
+                :disabled="postStore.followTogglingAuthorId === post.authorId"
+                @click="onForestFollowClick"
+              >
+                <Leaf
+                  class="h-5 w-5 transition-colors duration-300"
+                  :class="
+                    post.followingAuthor
+                      ? 'fill-emerald-600 text-emerald-600'
+                      : 'fill-transparent text-[#9CA3AF]'
+                  "
+                  :stroke-width="2"
+                />
+              </button>
+            </div>
             <p class="text-[12px] leading-relaxed text-[#8B7B7B]">{{ post.createdAt }}</p>
           </div>
         </div>
@@ -173,8 +258,9 @@ const openDetail = () => emit('open', props.post.id)
         <div class="relative flex min-w-0 flex-1 justify-start">
           <button
             type="button"
-            class="ripple-host relative inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-[#7D6B5C] transition-colors duration-200 active:scale-[0.98]"
+            class="ripple-host relative inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-[#7D6B5C] transition-colors duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
             :class="post.liked ? 'text-[#B76E7A]' : ''"
+            :disabled="hugDisabled"
             @click="triggerHug"
           >
             <span
@@ -218,8 +304,9 @@ const openDetail = () => emit('open', props.post.id)
 
         <button
           type="button"
-          class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-1 py-2 text-[12px] transition-all duration-200 active:scale-[0.98]"
+          class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-1 py-2 text-[12px] transition-all duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
           :class="post.favorited ? 'text-favorite' : 'text-[#7D6B5C]'"
+          :disabled="favoriteDisabled"
           @click="toggleFavorite"
         >
           <Star

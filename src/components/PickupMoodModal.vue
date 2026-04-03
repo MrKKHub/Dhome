@@ -11,7 +11,7 @@ defineProps<{
 
 const emit = defineEmits<{
   close: []
-  openDetail: [id: number]
+  openDetail: [id: string]
 }>()
 </script>
 

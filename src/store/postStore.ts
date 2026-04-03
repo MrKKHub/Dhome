@@ -1,15 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import axios from 'axios'
+import { showToast } from 'vant'
 import request from '@/api/request'
 import type { PostMood } from '@/constants/moods'
-import { MOOD_OPTIONS, randomTreeNickname } from '@/constants/moods'
+import { MOOD_OPTIONS } from '@/constants/moods'
 import { useUserStore } from '@/store/userStore'
 import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 export type { PostMood } from '@/constants/moods'
 
 export interface PostItem {
-  id: number
+  /** 后端 Post UUID */
+  id: string
   /** 已解析、可直接用于 img src（与资料页 resolveAvatarUrl 一致） */
   avatar: string
   nickname: string
@@ -25,11 +28,19 @@ export interface PostItem {
   createdAt: string
   /** 当前会话内由本机发布的帖子（用于「我的发布」） */
   isMine?: boolean
+  /** 作者用户 id（数字字符串），用于关注等；匿名帖接口不返回 */
+  authorId?: string
+  /** 森林匿名帖 */
+  isAnonymous?: boolean
+  /** Lucide 图标键，如 leaf */
+  anonymousAvatarKey?: string
+  /** 当前用户是否已关注作者（非匿名帖） */
+  followingAuthor?: boolean
 }
 
 export interface CommentItem {
-  id: number
-  postId: number
+  id: string
+  postId: string
   nickname: string
   avatar: string
   content: string
@@ -42,6 +53,8 @@ export interface PublishPayload {
   images: string[]
   mood: PostMood
   followsOnly: boolean
+  /** 森林匿名发布 */
+  isAnonymous?: boolean
 }
 
 /** 后端 /posts 单条结构（Prisma + author；兼容旧字段） */
@@ -70,6 +83,11 @@ interface PostApiRow {
   comments?: number
   comments_count?: number
   commentCount?: number
+  collectionCount?: number
+  anonymousName?: string
+  anonymousAvatar?: string
+  isMine?: boolean
+  followingAuthor?: boolean
   author?: {
     id?: string | number
     nickname?: string
@@ -81,22 +99,6 @@ interface PostApiRow {
     avatar?: string
     avatar_url?: string
   }
-}
-
-function apiIdToNumber(id: number | string): number {
-  if (typeof id === 'number' && !Number.isNaN(id)) {
-    return id
-  }
-  const s = String(id)
-  const n = Number(s)
-  if (!Number.isNaN(n) && String(n) === s) {
-    return n
-  }
-  let h = 0
-  for (let i = 0; i < s.length; i++) {
-    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
-  }
-  return Math.abs(h) || 1
 }
 
 function normalizeImages(raw: unknown): string[] {
@@ -124,6 +126,41 @@ function normalizeMood(raw: string | undefined): PostMood {
 }
 
 function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostItem {
+  const sid =
+    raw.id != null && String(raw.id).trim() !== '' ? String(raw.id) : ''
+  const created =
+    raw.created_at ?? raw.createdAt ?? new Date().toISOString()
+  const createdLabel =
+    typeof created === 'string' && created.length <= 20 && !created.includes('T')
+      ? created
+      : formatRelativeTime(created)
+
+  if (raw.isAnonymous) {
+    const anName = raw.anonymousName?.trim() || '森林访客'
+    const anKey = raw.anonymousAvatar?.trim() || 'leaf'
+    return {
+      id: sid,
+      authorId: undefined,
+      isAnonymous: true,
+      anonymousAvatarKey: anKey,
+      nickname: anName,
+      avatar: '',
+      title: raw.title ?? '',
+      content: raw.content ?? '',
+      images: normalizeImages(raw.images),
+      mood: normalizeMood(raw.mood ?? raw.moodTag),
+      liked: raw.liked ?? false,
+      favorited: raw.favorited ?? false,
+      likes: raw.hugCount ?? raw.likes_count ?? raw.likes ?? 0,
+      comments: raw.commentCount ?? raw.comments_count ?? raw.comments ?? 0,
+      followsOnly: raw.follows_only ?? raw.followsOnly ?? false,
+      createdAt: createdLabel,
+      followingAuthor: false,
+      ...overrides,
+      isMine: raw.isMine ?? overrides?.isMine ?? false,
+    }
+  }
+
   const nick =
     raw.author?.nickname ??
     raw.nickname ??
@@ -140,15 +177,16 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
   const trimmed =
     typeof rawAvatar === 'string' && rawAvatar.trim() ? rawAvatar.trim() : null
   const avatar = resolveAvatarUrl(trimmed, nick)
-  const created =
-    raw.created_at ?? raw.createdAt ?? new Date().toISOString()
-  const createdLabel =
-    typeof created === 'string' && created.length <= 20 && !created.includes('T')
-      ? created
-      : formatRelativeTime(created)
 
+  const aid =
+    raw.author?.id != null
+      ? String(raw.author.id)
+      : raw.authorId != null
+        ? String(raw.authorId)
+        : undefined
   return {
-    id: apiIdToNumber(raw.id),
+    id: sid,
+    authorId: aid,
     avatar,
     nickname: nick,
     title: raw.title ?? '',
@@ -161,7 +199,10 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     comments: raw.commentCount ?? raw.comments_count ?? raw.comments ?? 0,
     followsOnly: raw.follows_only ?? raw.followsOnly ?? false,
     createdAt: createdLabel,
+    isAnonymous: false,
+    followingAuthor: raw.followingAuthor ?? false,
     ...overrides,
+    isMine: raw.isMine ?? overrides?.isMine ?? false,
   }
 }
 
@@ -200,37 +241,6 @@ function unwrapPostsResponse(data: unknown): PostApiRow[] {
   return []
 }
 
-const commentsByPostInit: Record<number, CommentItem[]> = {
-  1: [
-    {
-      id: 1,
-      postId: 1,
-      nickname: '匿名小耳朵',
-      avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=Azhe',
-      content: '我懂那种被色彩轻轻抱住的感觉，像心里也亮了一点。',
-      createdAt: '5 分钟前',
-    },
-    {
-      id: 2,
-      postId: 1,
-      nickname: '路过的晚风',
-      avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=Momo',
-      content: '听起来好温柔，谢谢你愿意分享这份小确幸。',
-      createdAt: '2 分钟前',
-    },
-  ],
-  3: [
-    {
-      id: 3,
-      postId: 3,
-      nickname: '树洞倾听者',
-      avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=Orange',
-      content: '灯光层次改得好用心，像给房间盖了一层软软的被子。',
-      createdAt: '11 分钟前',
-    },
-  ],
-}
-
 export const usePostStore = defineStore('post', () => {
   const posts = ref<PostItem[]>([])
   const feedChannel = ref<'recommended' | 'follow'>('recommended')
@@ -240,7 +250,10 @@ export const usePostStore = defineStore('post', () => {
   const loading = ref(false)
   /** 与 van-list 的 v-model:loading 解耦：List 会先置 loading=true 再触发 load，不能用 loading 做互斥 */
   const listFetchInFlight = ref(false)
-  const commentsByPost = ref<Record<number, CommentItem[]>>({ ...commentsByPostInit })
+  const commentsByPost = ref<Record<string, CommentItem[]>>({})
+  const huggingPostId = ref<string | null>(null)
+  const favoritingPostId = ref<string | null>(null)
+  const followTogglingAuthorId = ref<string | null>(null)
 
   const recommendedPosts = computed(() => posts.value)
   const followPosts = computed(() =>
@@ -263,7 +276,9 @@ export const usePostStore = defineStore('post', () => {
     posts.value = rows.map((row) => {
       const aid = row.authorId ?? row.author?.id
       return mapPostFromApi(row, {
-        isMine: uid != null && aid != null && String(aid) === uid,
+        isMine:
+          row.isMine ??
+          (uid != null && aid != null && String(aid) === uid),
       })
     })
   }
@@ -281,36 +296,99 @@ export const usePostStore = defineStore('post', () => {
       images: remoteImages,
       moodTag: data.mood,
       mood: data.mood,
-      isAnonymous: false,
+      isAnonymous: data.isAnonymous ?? false,
     }
     const res = await request.post<PostApiRow>('/posts', body)
     const row = res.data
     if (!row || row.id == null || row.id === '') {
       throw new Error('发布接口未返回帖子数据')
     }
-    posts.value.unshift(
-      mapPostFromApi(row, {
-        isMine: true,
-        followsOnly: data.followsOnly,
-      }),
-    )
+    const item = mapPostFromApi(row, {
+      isMine: true,
+      followsOnly: data.followsOnly,
+    })
+    if (!item.id) {
+      throw new Error('发布接口未返回有效帖子 id')
+    }
+    posts.value.unshift(item)
   }
 
-  const toggleLike = (id: number) => {
+  const toggleLike = async (id: string) => {
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      showToast('登录后才能拥抱')
+      return
+    }
+    if (huggingPostId.value) {
+      return
+    }
     const target = posts.value.find((item) => item.id === id)
     if (!target) {
       return
     }
-    target.liked = !target.liked
+    const prevLiked = target.liked
+    const prevCount = target.likes
+    target.liked = !prevLiked
     target.likes += target.liked ? 1 : -1
+    huggingPostId.value = id
+    try {
+      const res = await request.post<{
+        success: boolean
+        hugCount: number
+        liked: boolean
+      }>(`/posts/${encodeURIComponent(id)}/hug`)
+      if (res.data?.success) {
+        target.likes = res.data.hugCount
+        target.liked = res.data.liked
+        showToast(res.data.liked ? '已送出拥抱' : '已取消拥抱')
+      }
+    } catch (e) {
+      target.liked = prevLiked
+      target.likes = prevCount
+      const msg = axios.isAxiosError(e) && e.response?.status === 401
+        ? '请先登录'
+        : '操作失败，请稍后再试'
+      showToast(msg)
+    } finally {
+      huggingPostId.value = null
+    }
   }
 
-  const toggleFavorite = (id: number) => {
+  const toggleFavorite = async (id: string) => {
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      showToast('登录后才能收藏')
+      return
+    }
+    if (favoritingPostId.value) {
+      return
+    }
     const target = posts.value.find((item) => item.id === id)
     if (!target) {
       return
     }
-    target.favorited = !target.favorited
+    const prevFav = target.favorited
+    target.favorited = !prevFav
+    favoritingPostId.value = id
+    try {
+      const res = await request.post<{
+        success: boolean
+        collectionCount: number
+        favorited: boolean
+      }>(`/posts/${encodeURIComponent(id)}/collect`)
+      if (res.data?.success) {
+        target.favorited = res.data.favorited
+        showToast(res.data.favorited ? '已收藏' : '已取消收藏')
+      }
+    } catch (e) {
+      target.favorited = prevFav
+      const msg = axios.isAxiosError(e) && e.response?.status === 401
+        ? '请先登录'
+        : '操作失败，请稍后再试'
+      showToast(msg)
+    } finally {
+      favoritingPostId.value = null
+    }
   }
 
   const publishPost = async (payload: PublishPayload) => {
@@ -320,40 +398,98 @@ export const usePostStore = defineStore('post', () => {
     }
   }
 
-  const getPostById = (id: number) =>
+  const getPostById = (id: string) =>
     posts.value.find((item) => item.id === id) ?? null
 
-  const getCommentsByPost = (postId: number) => commentsByPost.value[postId] ?? []
+  const getCommentsByPost = (postId: string) =>
+    commentsByPost.value[postId] ?? []
 
-  const addComment = (postId: number, content: string) => {
+  const fetchComments = async (postId: string) => {
+    try {
+      const res = await request.get<{
+        success: boolean
+        comments: Array<{
+          id: string
+          content: string
+          createdAt: string
+          author: { nickname: string; avatar: string | null }
+        }>
+      }>(`/posts/${encodeURIComponent(postId)}/comments`)
+      if (!res.data?.success || !Array.isArray(res.data.comments)) {
+        return
+      }
+      commentsByPost.value[postId] = res.data.comments.map((c) => ({
+        id: c.id,
+        postId,
+        nickname: c.author.nickname,
+        avatar: resolveAvatarUrl(c.author.avatar, c.author.nickname),
+        content: c.content,
+        createdAt:
+          typeof c.createdAt === 'string' && c.createdAt.includes('T')
+            ? formatRelativeTime(c.createdAt)
+            : String(c.createdAt),
+      }))
+    } catch {
+      commentsByPost.value[postId] = []
+    }
+  }
+
+  const addComment = async (
+    postId: string,
+    content: string,
+  ): Promise<{ ok: boolean; message?: string }> => {
     const trimmed = content.trim()
     if (!trimmed) {
-      return false
+      return { ok: false, message: '写一点点再发送吧' }
     }
-
-    const nextId =
-      Object.values(commentsByPost.value)
-        .flat()
-        .reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1
-
-    const nick = randomTreeNickname()
-    const nextComment: CommentItem = {
-      id: nextId,
-      postId,
-      nickname: nick,
-      avatar: `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(nick)}`,
-      content: trimmed,
-      createdAt: '刚刚',
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      showToast('登录后才能留言')
+      return { ok: false, message: '未登录' }
     }
-
-    const list = commentsByPost.value[postId] ?? []
-    commentsByPost.value[postId] = [nextComment, ...list]
-
-    const target = posts.value.find((item) => item.id === postId)
-    if (target) {
-      target.comments += 1
+    try {
+      const res = await request.post<{
+        success: boolean
+        commentCount: number
+        comment: {
+          id: string
+          content: string
+          createdAt: string
+          author: { nickname: string; avatar: string | null }
+        }
+      }>('/comments', { postId, content: trimmed })
+      const d = res.data
+      if (!d?.success || !d.comment) {
+        return { ok: false, message: '发送失败' }
+      }
+      const c = d.comment
+      const iso =
+        typeof c.createdAt === 'string' && c.createdAt.includes('T')
+          ? c.createdAt
+          : new Date().toISOString()
+      const item: CommentItem = {
+        id: c.id,
+        postId,
+        nickname: c.author.nickname,
+        avatar: resolveAvatarUrl(c.author.avatar, c.author.nickname),
+        content: c.content,
+        createdAt: formatRelativeTime(iso),
+      }
+      const list = commentsByPost.value[postId] ?? []
+      commentsByPost.value[postId] = [item, ...list]
+      const target = posts.value.find((p) => p.id === postId)
+      if (target) {
+        target.comments = d.commentCount
+      }
+      return { ok: true }
+    } catch (e) {
+      const msg =
+        axios.isAxiosError(e) && e.response?.status === 401
+          ? '请先登录'
+          : '发送失败，请稍后再试'
+      showToast(msg)
+      return { ok: false, message: msg }
     }
-    return true
   }
 
   const setFeedChannel = (channel: 'recommended' | 'follow') => {
@@ -417,21 +553,76 @@ export const usePostStore = defineStore('post', () => {
     const uid = useUserStore().userInfo?.id ?? null
     return mapPostFromApi(row, {
       isMine:
-        uid != null &&
-        String(row.authorId ?? row.author?.id ?? '') === String(uid),
+        row.isMine ??
+        (uid != null &&
+          String(row.authorId ?? row.author?.id ?? '') === String(uid)),
     })
+  }
+
+  /**
+   * 绿叶关注：POST /follow/:id，可选 postId 供后端匿名路径禁区校验
+   * @returns 关注态是否为 true；失败或取消为 false；未登录等为 null
+   */
+  const toggleFollowOnPost = async (
+    authorId: string,
+    postId: string,
+  ): Promise<boolean | null> => {
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      showToast('登录后再种下思念吧')
+      return null
+    }
+    if (!authorId || followTogglingAuthorId.value) {
+      return null
+    }
+    followTogglingAuthorId.value = authorId
+    try {
+      const res = await request.post<{
+        success?: boolean
+        isFollowing?: boolean
+      }>(`/follow/${encodeURIComponent(authorId)}`, { postId })
+      const following = !!res.data?.isFollowing
+      for (const p of posts.value) {
+        if (p.authorId === authorId) {
+          p.followingAuthor = following
+        }
+      }
+      showToast(
+        following
+          ? '已与这位森林伙伴建立连接'
+          : '已松开这片叶子的手',
+      )
+      return following
+    } catch (e) {
+      const msg =
+        axios.isAxiosError(e) && e.response?.status === 401
+          ? '请先登录'
+          : axios.isAxiosError(e) && e.response?.status === 403
+            ? String(
+                (e.response?.data as { message?: string })?.message ||
+                  '暂时无法关注',
+              )
+            : '操作失败，请稍后再试'
+      showToast(msg)
+      return null
+    } finally {
+      followTogglingAuthorId.value = null
+    }
   }
 
   /** 本地资料头像更新后，同步首页/详情里「我的帖子」展示，避免等重新拉列表 */
   const patchMineAvatarDisplay = (displayUrl: string) => {
     for (const p of posts.value) {
-      if (p.isMine) {
+      if (p.isMine && !p.isAnonymous) {
         p.avatar = displayUrl
       }
     }
   }
 
   return {
+    huggingPostId,
+    favoritingPostId,
+    followTogglingAuthorId,
     posts,
     page,
     pageSize,
@@ -448,11 +639,13 @@ export const usePostStore = defineStore('post', () => {
     publishPost,
     getPostById,
     getCommentsByPost,
+    fetchComments,
     addComment,
     setFeedChannel,
     fetchNextPage,
     refreshFeed,
     fetchRandomPickup,
     patchMineAvatarDisplay,
+    toggleFollowOnPost,
   }
 })

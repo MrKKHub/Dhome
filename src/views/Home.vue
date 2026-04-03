@@ -26,7 +26,12 @@ const lastTab = ref('推荐')
 
 const postStore = usePostStore()
 const userStore = useUserStore()
-const { loading: listLoading, finished: listFinished } = storeToRefs(postStore)
+const {
+  loading: listLoading,
+  finished: listFinished,
+  huggingPostId,
+  favoritingPostId,
+} = storeToRefs(postStore)
 const router = useRouter()
 
 const pickupOpen = ref(false)
@@ -79,7 +84,7 @@ const currentPosts = computed(() => {
   return list
 })
 
-const openPost = (id: number) => router.push(`/detail/${id}`)
+const openPost = (id: string) => router.push(`/detail/${encodeURIComponent(id)}`)
 
 const openPickup = async () => {
   if (!userStore.isLoggedIn || !userStore.token) {
@@ -111,7 +116,7 @@ const closePickup = () => {
   pickupPost.value = null
 }
 
-const openPickupDetail = (id: number) => {
+const openPickupDetail = (id: string) => {
   closePickup()
   openPost(id)
 }
@@ -277,6 +282,8 @@ onUnmounted(() => {
                 :key="post.id"
                 class="animate-fade-in"
                 :post="post"
+                :hug-disabled="huggingPostId === post.id"
+                :favorite-disabled="favoritingPostId === post.id"
                 @like="postStore.toggleLike"
                 @favorite="postStore.toggleFavorite"
                 @open="openPost"

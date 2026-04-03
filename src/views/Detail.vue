@@ -1,30 +1,153 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Heart, Sparkles } from 'lucide-vue-next'
-import { showToast } from 'vant'
+import { Heart, Sparkles, UserPlus } from 'lucide-vue-next'
+import axios from 'axios'
+import request from '@/api/request'
+import { playLeafConfetti } from '@/utils/leafConfetti'
 import PostCard from '@/components/PostCard.vue'
+import { useAppToast } from '@/composables/useAppToast'
 import { usePostStore } from '@/store/postStore'
+import { useUserStore } from '@/store/userStore'
+import { storeToRefs } from 'pinia'
 
 const route = useRoute()
 const store = usePostStore()
+const { huggingPostId, favoritingPostId } = storeToRefs(store)
+const userStore = useUserStore()
+const toast = useAppToast()
 const commentText = ref('')
+const commentSubmitting = ref(false)
+const followLoading = ref(false)
+const isFollowedByMe = ref(false)
+const leafFollowBtnRef = ref<HTMLButtonElement | null>(null)
 
-const postId = computed(() => Number(route.params.id))
-const post = computed(() => store.getPostById(postId.value))
-const comments = computed(() => store.getCommentsByPost(postId.value))
+const postId = computed(() => {
+  const raw = route.params.id
+  return Array.isArray(raw) ? raw[0] ?? '' : String(raw ?? '')
+})
 
-const submitComment = () => {
-  if (!post.value) {
+const post = computed(() =>
+  postId.value ? store.getPostById(postId.value) : null,
+)
+
+const showFollow = computed(
+  () =>
+    !!post.value &&
+    !post.value.isMine &&
+    !post.value.isAnonymous &&
+    !!post.value.authorId &&
+    userStore.isLoggedIn,
+)
+
+async function loadFollowState() {
+  const p = post.value
+  const aid = p?.authorId
+  if (!p || p.isMine || !aid || !userStore.isLoggedIn) {
+    isFollowedByMe.value = false
     return
   }
-  const success = store.addComment(post.value.id, commentText.value)
-  if (!success) {
-    showToast('写一点点再发送吧')
+  try {
+    const res = await request.get<{ isFollowedByViewer?: boolean }>(
+      `/user/profile/${aid}`,
+    )
+    isFollowedByMe.value = !!res.data?.isFollowedByViewer
+  } catch {
+    isFollowedByMe.value = false
+  }
+}
+
+const toggleFollowAuthor = async () => {
+  const aid = post.value?.authorId
+  const pid = postId.value
+  if (!aid || !pid || followLoading.value || !userStore.isLoggedIn) {
     return
   }
-  commentText.value = ''
-  showToast('你的回声已送达')
+  const was = isFollowedByMe.value
+  followLoading.value = true
+  try {
+    const res = await request.post<{
+      success?: boolean
+      isFollowing?: boolean
+    }>(`/follow/${encodeURIComponent(aid)}`, { postId: pid })
+    if (res.data?.success) {
+      isFollowedByMe.value = !!res.data.isFollowing
+      const now = !!res.data.isFollowing
+      if (now && !was) {
+        void playLeafConfetti(leafFollowBtnRef.value)
+      }
+      toast.success(
+        now ? '已与这位森林伙伴建立连接' : '已松开这片叶子的手',
+      )
+      const p = post.value
+      if (p) {
+        p.followingAuthor = now
+      }
+    }
+  } catch (e) {
+    let msg = '操作失败，请稍后再试'
+    if (axios.isAxiosError(e)) {
+      if (e.response?.status === 401) {
+        msg = '请先登录'
+      } else {
+        const raw = (e.response?.data as { message?: string | string[] })
+          ?.message
+        if (Array.isArray(raw) && raw[0]) {
+          msg = raw[0]
+        } else if (typeof raw === 'string' && raw.trim()) {
+          msg = raw
+        }
+      }
+    }
+    toast.fail(msg)
+  } finally {
+    followLoading.value = false
+  }
+}
+const comments = computed(() =>
+  postId.value ? store.getCommentsByPost(postId.value) : [],
+)
+
+watch(
+  () => postId.value,
+  async (id) => {
+    if (id) {
+      await store.fetchComments(id)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => ({
+    aid: post.value?.authorId,
+    mine: post.value?.isMine,
+    loggedIn: userStore.isLoggedIn,
+  }),
+  () => {
+    void loadFollowState()
+  },
+  { immediate: true },
+)
+
+const submitComment = async () => {
+  if (!post.value || !postId.value || commentSubmitting.value) {
+    return
+  }
+  commentSubmitting.value = true
+  try {
+    const r = await store.addComment(postId.value, commentText.value)
+    if (!r.ok) {
+      if (r.message && r.message !== '未登录') {
+        toast.fail(r.message)
+      }
+      return
+    }
+    commentText.value = ''
+    toast.success('你的回声已送达')
+  } finally {
+    commentSubmitting.value = false
+  }
 }
 </script>
 
@@ -33,11 +156,30 @@ const submitComment = () => {
     <PostCard
       v-if="post"
       :post="post"
+      :hug-disabled="huggingPostId === post.id"
+      :favorite-disabled="favoritingPostId === post.id"
       @like="store.toggleLike"
       @favorite="store.toggleFavorite"
       @open="() => null"
       @comment="() => null"
     />
+
+    <div
+      v-if="post && showFollow"
+      class="mt-2 flex justify-end"
+    >
+      <button
+        ref="leafFollowBtnRef"
+        type="button"
+        title="种下思念"
+        class="inline-flex items-center gap-1.5 rounded-full border border-[#F0E8E0] bg-white/90 px-4 py-2 text-[13px] font-medium text-warmInk shadow-warm transition-all active:scale-[0.97] disabled:opacity-50"
+        :disabled="followLoading"
+        @click.stop="toggleFollowAuthor"
+      >
+        <UserPlus class="h-4 w-4 text-emerald-600" />
+        {{ isFollowedByMe ? '已关注' : '种下思念' }}
+      </button>
+    </div>
 
     <div
       v-else
@@ -68,10 +210,11 @@ const submitComment = () => {
         ></textarea>
         <button
           type="button"
-          class="h-11 shrink-0 rounded-full bg-gradient-to-r from-lilac to-[#B8B0FF] px-5 text-[13px] font-semibold text-white shadow-warmLg transition-all duration-200 active:scale-[0.97] sm:h-auto sm:self-stretch sm:px-4"
+          class="h-11 shrink-0 rounded-full bg-gradient-to-r from-lilac to-[#B8B0FF] px-5 text-[13px] font-semibold text-white shadow-warmLg transition-all duration-200 active:scale-[0.97] disabled:opacity-50 sm:h-auto sm:self-stretch sm:px-4"
+          :disabled="commentSubmitting"
           @click="submitComment"
         >
-          送出回声
+          {{ commentSubmitting ? '发送中…' : '送出回声' }}
         </button>
       </div>
 
@@ -85,7 +228,7 @@ const submitComment = () => {
             <img
               :src="item.avatar"
               :alt="item.nickname"
-              class="h-8 w-8 rounded-full border border-[#F0E8E0]"
+              class="h-8 w-8 rounded-full border border-[#F0E8E0] object-cover"
             />
             <div>
               <p class="text-[13px] font-semibold text-warmInk">{{ item.nickname }}</p>

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import request from '@/api/request'
+import { formDataUploadAxiosConfig } from '@/api/formDataUploadConfig'
 import {
   ACCESS_TOKEN_STORAGE_KEY,
   USER_INFO_STORAGE_KEY,
@@ -195,12 +196,17 @@ export const useUserStore = defineStore('user', () => {
     try {
       const body = new FormData()
       body.append('file', file)
+      console.log('[uploadAvatar] FormData', {
+        name: file.name,
+        size: file.size,
+        type: file.type || 'no-type',
+      })
       const res = await request.post<{
         id: string
         email: string
         nickname: string
         avatar: string | null
-      }>('/user/upload-avatar', body)
+      }>('/user/upload-avatar', body, formDataUploadAxiosConfig({ timeout: 120_000 }))
 
       const u = res.data
       if (!u?.id) {
@@ -216,6 +222,13 @@ export const useUserStore = defineStore('user', () => {
       persistSession(token.value, next)
       return { ok: true, message: '头像已更新' }
     } catch (e) {
+      if (axios.isAxiosError(e)) {
+        console.error('[uploadAvatar] 失败', {
+          status: e.response?.status,
+          data: e.response?.data,
+          message: e.message,
+        })
+      }
       return {
         ok: false,
         message: axiosErrorMessage(e, '头像上传失败，请稍后再试'),

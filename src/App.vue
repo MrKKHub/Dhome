@@ -1,20 +1,73 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
+  Bell,
   CircleUserRound,
   Home,
   Plus,
   Sparkles,
   User,
 } from 'lucide-vue-next'
+import { useUserStore } from '@/store/userStore'
+import { useNotificationStore } from '@/store/notificationStore'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 
 const isDetailRoute = computed(() => route.path.startsWith('/detail'))
 const hideShellOnAuth = computed(() => route.path === '/login')
+
+const headerTitle = computed(() => {
+  if (route.path.startsWith('/detail')) {
+    return '树洞详情'
+  }
+  if (route.path === '/notifications') {
+    return '消息通知'
+  }
+  return 'DHome'
+})
+
+const showHeaderBell = computed(
+  () =>
+    userStore.isLoggedIn &&
+    route.path !== '/login' &&
+    route.path !== '/notifications',
+)
+
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    void notificationStore.fetchUnreadOnly()
+  }
+})
+
+watch(
+  () => userStore.isLoggedIn,
+  (v) => {
+    if (v) {
+      void notificationStore.fetchUnreadOnly()
+    } else {
+      notificationStore.unreadCount = 0
+    }
+  },
+)
+
+router.afterEach((to, from) => {
+  if (
+    userStore.isLoggedIn &&
+    from.path === '/notifications' &&
+    to.path !== '/notifications'
+  ) {
+    void notificationStore.fetchUnreadOnly()
+  }
+})
+
+const goNotifications = () => {
+  router.push('/notifications')
+}
 
 const leftTab = { path: '/', icon: Home, label: '树洞' }
 const rightTabs = [
@@ -65,9 +118,26 @@ const goBack = () => {
         <div class="flex items-center gap-1.5">
           <Sparkles class="h-4 w-4 text-brand" />
           <h1 class="text-center text-[17px] font-semibold text-warmInk">
-            {{ isDetailRoute ? '树洞详情' : 'DHome' }}
+            {{ headerTitle }}
           </h1>
         </div>
+        <button
+          v-if="showHeaderBell"
+          type="button"
+          class="absolute right-0 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-full p-2 text-warmInk/55 transition-colors active:scale-[0.95] active:text-brand"
+          aria-label="消息通知"
+          @click="goNotifications"
+        >
+          <span class="relative inline-flex">
+            <Bell class="h-5 w-5" />
+            <span
+              v-if="notificationStore.unreadCount > 0"
+              class="absolute -right-0.5 -top-0.5 min-h-[16px] min-w-[16px] rounded-full bg-[#E85D5D] px-[5px] text-center text-[10px] font-bold leading-4 text-white"
+            >
+              {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
+            </span>
+          </span>
+        </button>
       </div>
     </header>
 
