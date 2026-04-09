@@ -284,7 +284,6 @@ onUnmounted(() => {
                 :post="post"
                 :hug-disabled="huggingPostId === post.id"
                 :favorite-disabled="favoritingPostId === post.id"
-                @like="postStore.toggleLike"
                 @favorite="postStore.toggleFavorite"
                 @open="openPost"
                 @comment="openPost"

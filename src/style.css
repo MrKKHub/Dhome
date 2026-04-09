@@ -45,3 +45,40 @@ body::before {
   min-height: 100dvh;
   margin: 0 auto;
 }
+
+/**
+ * 个人中心 Tab 内容区：仅限制列表区域最大高度并内部滚动；
+ * 整页仍随 main 滚动，避免顶栏卡片占满视口后把「我的发布」裁切掉。
+ * 4rem + 7rem 与 App.vue main 的 pt-16、pb-28 对齐；10rem 为 Tab 条与上下留白估算。
+ */
+.profile-tab-inner-scroll {
+  max-height: min(40dvh, calc(100dvh - 4rem - 7rem - 10rem - env(safe-area-inset-bottom, 0px)));
+}
+
+/**
+ * 通用局部滚动容器：独立滚动、iOS 惯性、隐藏系统滚动条（个人中心三 Tab 共用）。
+ */
+.profile-local-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.profile-local-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/** Tab 内「暂无内容」：保证占位有可视高度以便垂直居中（不依赖父级固定 height） */
+.profile-scroll-empty {
+  display: flex;
+  min-height: min(16rem, 52dvh);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}

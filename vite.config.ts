@@ -1,3 +1,11 @@
+/*
+ * @Author: huashikai huashikai@huitongjt.com
+ * @Date: 2026-03-31 14:31:41
+ * @LastEditors: huashikai huashikai@huitongjt.com
+ * @LastEditTime: 2026-04-09 11:12:56
+ * @FilePath: /dhome/vite.config.ts
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'

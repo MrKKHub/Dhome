@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+
+/** UI 开关：恢复卡片标题展示时改为 false（post.title 仍参与数据映射） */
+const UI_HIDE_CARD_TITLE = true
+/** UI 开关：关闭后缩略图不再打开全屏预览 */
+const UI_IMAGE_PREVIEW_ENABLED = true
 import {
   HeartHandshake,
   Leaf,
@@ -8,6 +13,8 @@ import {
   Sparkles,
   Star,
 } from 'lucide-vue-next'
+import { showDialog, showToast } from 'vant'
+import { CAPSULE_LOCKED_TOAST } from '@/constants/capsule'
 import ForestAnonymousAvatar from '@/components/ForestAnonymousAvatar.vue'
 import {
   MOOD_BADGE_CLASS,
@@ -17,26 +24,56 @@ import {
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 import { playLeafConfetti } from '@/utils/leafConfetti'
+import { playHugHeartConfetti } from '@/utils/hugHeartConfetti'
 import type { PostItem } from '@/store/postStore'
 
 const postStore = usePostStore()
 const userStore = useUserStore()
 const leafBtnRef = ref<HTMLButtonElement | null>(null)
+const hugBtnRef = ref<HTMLButtonElement | null>(null)
+/** 发送拥抱前填写匿名与暖心话 */
+const hugPanelOpen = ref(false)
+const hugAnonymous = ref(false)
+const hugMessage = ref('')
+/** 全屏大图预览：点击缩略图打开，点遮罩或图关闭 */
+const imagePreviewUrl = ref<string | null>(null)
+
+const openImagePreview = (url: string) => {
+  if (!UI_IMAGE_PREVIEW_ENABLED || !url?.trim()) {
+    return
+  }
+  imagePreviewUrl.value = url
+}
+
+const closeImagePreview = () => {
+  imagePreviewUrl.value = null
+}
 
 const props = withDefaults(
   defineProps<{
     post: PostItem
     hugDisabled?: boolean
     favoriteDisabled?: boolean
+    /**
+     * 胶囊馆：作者看自己未到期胶囊时也显示信封壳与倒计时（与首页「已解密」展示区分）
+     */
+    museumMode?: boolean
   }>(),
   {
     hugDisabled: false,
     favoriteDisabled: false,
+    museumMode: false,
   },
 )
 
+/** 单图略大展示；多图沿用宫格小缩略 */
+const postImageThumbClass = computed(() =>
+  props.post.images.length === 1
+    ? 'w-full max-h-[220px] min-h-0 cursor-zoom-in rounded-2xl object-cover transition-opacity active:opacity-90'
+    : 'h-24 w-full cursor-zoom-in rounded-2xl object-cover transition-opacity active:opacity-90',
+)
+
 const emit = defineEmits<{
-  like: [id: string]
   favorite: [id: string]
   comment: [id: string]
   open: [id: string]
@@ -58,6 +95,34 @@ const moodSurfaceColor = computed(
   () => MOOD_CARD_SURFACE_COLOR[props.post.mood],
 )
 
+/** 未开启胶囊：距解锁天数（向上取整） */
+const capsuleDaysLeft = computed(() => {
+  if (!props.post.unlockAtIso) {
+    return 0
+  }
+  const t = Date.parse(props.post.unlockAtIso)
+  if (Number.isNaN(t) || t <= Date.now()) {
+    return 0
+  }
+  return Math.max(0, Math.ceil((t - Date.now()) / 86400000))
+})
+
+/** 信封壳：他人视角接口脱敏，或胶囊馆中作者看自己未到期 */
+const showCapsuleShell = computed(() => {
+  if (props.post.capsuleLocked) {
+    return true
+  }
+  if (
+    props.museumMode &&
+    props.post.isCapsule &&
+    props.post.unlockAtIso &&
+    Date.parse(props.post.unlockAtIso) > Date.now()
+  ) {
+    return true
+  }
+  return false
+})
+
 const showLeafDecor = computed(
   () => (props.post.id.length + (props.post.id.charCodeAt(0) ?? 0)) % 2 === 0,
 )
@@ -67,11 +132,37 @@ const listenRipple = ref(false)
 let hugTimer: ReturnType<typeof setTimeout> | null = null
 let listenTimer: ReturnType<typeof setTimeout> | null = null
 
-const triggerHug = () => {
+const triggerHug = async () => {
   if (props.hugDisabled) {
     return
   }
-  emit('like', props.post.id)
+  if (!userStore.isLoggedIn) {
+    void postStore.toggleLike(props.post.id)
+    return
+  }
+  if (props.post.liked) {
+    hugRipple.value = true
+    if (hugTimer) {
+      clearTimeout(hugTimer)
+    }
+    hugTimer = setTimeout(() => {
+      hugRipple.value = false
+      hugTimer = null
+    }, 900)
+    await postStore.toggleLike(props.post.id)
+    return
+  }
+  hugAnonymous.value = false
+  hugMessage.value = ''
+  hugPanelOpen.value = true
+}
+
+/** 确认送出拥抱：心形粒子 + 接口；匿名成功弹窗文案 */
+const confirmHug = async () => {
+  if (props.hugDisabled) {
+    return
+  }
+  hugPanelOpen.value = false
   hugRipple.value = true
   if (hugTimer) {
     clearTimeout(hugTimer)
@@ -80,6 +171,27 @@ const triggerHug = () => {
     hugRipple.value = false
     hugTimer = null
   }, 900)
+  void playHugHeartConfetti(hugBtnRef.value)
+  const r = await postStore.toggleLike(props.post.id, {
+    isAnonymous: hugAnonymous.value,
+    content: hugMessage.value,
+  })
+  if (r.ok && r.liked && r.hugAnonymous) {
+    void showDialog({
+      title: '温暖已传达',
+      message: '已发送匿名拥抱，温暖已传达',
+      theme: 'round-button',
+      confirmButtonText: '好的',
+    })
+  }
+}
+
+/** 未解锁胶囊：他人统一提示；作者在自己的胶囊馆点击不打扰 */
+const onLockedCapsuleTap = () => {
+  if (props.post.isMine && props.museumMode) {
+    return
+  }
+  showToast(CAPSULE_LOCKED_TOAST)
 }
 
 const triggerListen = () => {
@@ -229,26 +341,69 @@ const onForestFollowClick = async (e: MouseEvent) => {
           >
             仅关注
           </span>
+          <span
+            v-if="post.isCapsule"
+            class="rounded-full bg-amber-100/90 px-2 py-0.5 text-[11px] text-amber-900/80"
+          >
+            时间胶囊
+          </span>
         </div>
       </div>
 
-      <h3 class="mb-2 text-[17px] font-semibold leading-relaxed text-[#5C4B4B]">
-        {{ post.title }}
-      </h3>
-      <p class="mb-3 text-[15px] leading-relaxed text-[#6B5A5A]">{{ post.content }}</p>
-
+      <!-- 信封壳需要足够高度；未加壳时用 overflow-hidden 裁圆角。加壳时去掉 hidden，避免绝对定位层被裁切 -->
       <div
-        v-if="post.images.length"
-        class="mb-3 grid gap-2"
-        :class="imageClass"
+        class="relative mb-3 min-h-[4.5rem] rounded-2xl"
+        :class="showCapsuleShell ? 'min-h-[11rem]' : 'overflow-hidden'"
       >
-        <img
-          v-for="(image, idx) in post.images"
-          :key="`${post.id}-${idx}`"
-          :src="image"
-          alt="post-image"
-          class="h-24 w-full rounded-2xl object-cover"
-        />
+        <div
+          v-if="showCapsuleShell"
+          class="absolute inset-0 z-[2] flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-amber-200/60 bg-white/55 px-4 py-5 text-center shadow-inner backdrop-blur-md"
+          role="button"
+          tabindex="0"
+          @click.stop="onLockedCapsuleTap"
+          @keydown.enter.stop="onLockedCapsuleTap"
+        >
+          <span class="shrink-0 text-3xl leading-none opacity-90" aria-hidden="true">✉️</span>
+          <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+            一封未拆的信
+          </p>
+          <p class="text-[13px] leading-normal text-[#8B7355]">
+            🔒 距开启还有 {{ capsuleDaysLeft }} 天
+          </p>
+        </div>
+        <div
+          :class="[
+            showCapsuleShell
+              ? 'pointer-events-none overflow-hidden rounded-2xl blur-[7px] opacity-45'
+              : '',
+          ]"
+        >
+          <!-- 标题字段仍由 post.title 承载，仅视觉隐藏以降噪 -->
+          <h3
+            v-if="!UI_HIDE_CARD_TITLE"
+            class="mb-2 text-[17px] font-semibold leading-relaxed text-[#5C4B4B]"
+          >
+            {{ post.title }}
+          </h3>
+          <p class="mb-3 text-[15px] leading-relaxed text-[#6B5A5A]">
+            {{ post.content }}
+          </p>
+
+          <div
+            v-if="post.images.length"
+            class="mb-0 grid gap-2"
+            :class="imageClass"
+          >
+            <img
+              v-for="(image, idx) in post.images"
+              :key="`${post.id}-${idx}`"
+              :src="image"
+              alt="post-image"
+              :class="postImageThumbClass"
+              @click.stop="openImagePreview(image)"
+            />
+          </div>
+        </div>
       </div>
 
       <div
@@ -257,10 +412,14 @@ const onForestFollowClick = async (e: MouseEvent) => {
       >
         <div class="relative flex min-w-0 flex-1 justify-start">
           <button
+            ref="hugBtnRef"
             type="button"
             class="ripple-host relative inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-[#7D6B5C] transition-colors duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
             :class="post.liked ? 'text-[#B76E7A]' : ''"
-            :disabled="hugDisabled"
+            :disabled="
+              hugDisabled ||
+              (showCapsuleShell === true && !post.isMine)
+            "
             @click="triggerHug"
           >
             <span
@@ -333,10 +492,82 @@ const onForestFollowClick = async (e: MouseEvent) => {
         <span>{{ post.comments }} 条温柔回声</span>
       </div>
     </div>
+
+    <van-popup
+      :show="hugPanelOpen"
+      position="bottom"
+      round
+      :style="{ padding: '0' }"
+      teleport="body"
+      @update:show="hugPanelOpen = $event"
+    >
+      <div class="border-t border-[#F0E8E0]/80 bg-white px-4 pb-6 pt-4">
+        <p class="mb-3 text-[16px] font-semibold text-warmInk">送出一个拥抱</p>
+        <textarea
+          v-model="hugMessage"
+          class="mb-3 min-h-20 w-full rounded-2xl border border-[#F0E8E0] bg-apricot/40 px-3 py-2.5 text-[14px] text-warmInk/85 outline-none placeholder:text-warmInk/35"
+          maxlength="280"
+          placeholder="选填：一句暖心话（最多 280 字）"
+        />
+        <label
+          class="mb-4 flex cursor-pointer items-center justify-between rounded-xl bg-apricot/50 px-3 py-2.5"
+        >
+          <span class="text-[14px] text-warmInk/80">匿名拥抱</span>
+          <input v-model="hugAnonymous" type="checkbox" class="h-4 w-4 accent-[#B76E7A]" />
+        </label>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="flex-1 rounded-full border border-[#E8DDD4] py-3 text-[14px] font-medium text-warmInk/70 active:scale-[0.98]"
+            @click="hugPanelOpen = false"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-full bg-gradient-to-r from-[#E8A0A8] to-[#C48A92] py-3 text-[14px] font-semibold text-white shadow-warm active:scale-[0.98]"
+            @click="confirmHug"
+          >
+            发送温暖
+          </button>
+        </div>
+      </div>
+    </van-popup>
+
+    <Teleport to="body">
+      <Transition name="img-preview-fade">
+        <div
+          v-if="imagePreviewUrl && UI_IMAGE_PREVIEW_ENABLED"
+          class="fixed inset-0 z-[5000] flex cursor-zoom-out items-center justify-center bg-black/[0.76] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片预览"
+          @click="closeImagePreview"
+        >
+          <img
+            :src="imagePreviewUrl"
+            class="max-h-[88vh] max-w-full rounded-lg object-contain shadow-2xl"
+            alt="大图预览"
+            @click="closeImagePreview"
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
+/* 大图预览淡入淡出，便于日后关闭开关时一并移除 */
+.img-preview-fade-enter-active,
+.img-preview-fade-leave-active {
+  transition: opacity 0.24s ease;
+}
+
+.img-preview-fade-enter-from,
+.img-preview-fade-leave-to {
+  opacity: 0;
+}
+
 .card-grain {
   opacity: 0.055;
   mix-blend-mode: multiply;

@@ -158,7 +158,6 @@ const submitComment = async () => {
       :post="post"
       :hug-disabled="huggingPostId === post.id"
       :favorite-disabled="favoritingPostId === post.id"
-      @like="store.toggleLike"
       @favorite="store.toggleFavorite"
       @open="() => null"
       @comment="() => null"
@@ -189,7 +188,14 @@ const submitComment = async () => {
     </div>
 
     <div
-      v-if="post"
+      v-if="post && post.capsuleLocked && !post.isMine"
+      class="mt-3 rounded-[28px] border border-amber-200/60 bg-amber-50/80 px-4 py-6 text-center text-[14px] text-amber-950/75"
+    >
+      这是一封未拆的时间胶囊，开启后才可以在此留下回声。
+    </div>
+
+    <div
+      v-if="post && (!post.capsuleLocked || post.isMine)"
       class="mt-3 space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warmLg backdrop-blur-sm"
     >
       <div class="flex items-center gap-2">

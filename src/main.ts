@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import './style.css'
 import 'vant/lib/index.css'
+import './vant-overrides.css'
 import App from './App.vue'
 import { createPinia } from 'pinia'
 import router from '@/router'

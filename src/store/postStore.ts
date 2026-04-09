@@ -10,6 +10,21 @@ import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 export type { PostMood } from '@/constants/moods'
 
+/** 长河打捞：统一解析 Nest 响应里的 message，供 Toast 展示 */
+function parseNestMessage(data: unknown): string | undefined {
+  if (data == null || typeof data !== 'object') {
+    return undefined
+  }
+  const raw = (data as { message?: unknown }).message
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.trim()
+  }
+  if (Array.isArray(raw) && typeof raw[0] === 'string' && raw[0].trim()) {
+    return raw[0].trim()
+  }
+  return undefined
+}
+
 export interface PostItem {
   /** 后端 Post UUID */
   id: string
@@ -36,7 +51,22 @@ export interface PostItem {
   anonymousAvatarKey?: string
   /** 当前用户是否已关注作者（非匿名帖） */
   followingAuthor?: boolean
+  /** 时间胶囊 */
+  isCapsule?: boolean
+  /** 解锁时间 ISO（用于倒计时） */
+  unlockAtIso?: string | null
+  /** 接口标明当前用户视角下是否仍锁定 */
+  capsuleLocked?: boolean
+  /** 是否进入时光长河（打捞池） */
+  isPublic?: boolean
+  /** 来自长河打捞的匿名展示条 */
+  isRiverCatch?: boolean
 }
+
+/** 时光长河随机打捞结果（HTTP 层在 store 内消化，由页面弹 Vant Toast） */
+export type SalvageRiverCapsuleResult =
+  | { ok: true; item: PostItem }
+  | { ok: false; item: null; message: string; emptyPool: boolean }
 
 export interface CommentItem {
   id: string
@@ -55,6 +85,18 @@ export interface PublishPayload {
   followsOnly: boolean
   /** 森林匿名发布 */
   isAnonymous?: boolean
+  /** 时间胶囊 */
+  isCapsule?: boolean
+  /** ISO8601，仅胶囊帖需要 */
+  unlockAt?: string | null
+  /** 是否允许进入时光长河；默认 true */
+  isPublic?: boolean
+}
+
+/** 发送拥抱时的可选参数 */
+export type HugSendOptions = {
+  isAnonymous?: boolean
+  content?: string
 }
 
 /** 后端 /posts 单条结构（Prisma + author；兼容旧字段） */
@@ -88,6 +130,11 @@ interface PostApiRow {
   anonymousAvatar?: string
   isMine?: boolean
   followingAuthor?: boolean
+  isCapsule?: boolean
+  unlockAt?: string | null
+  capsuleLocked?: boolean
+  isPublic?: boolean
+  isRiverCatch?: boolean
   author?: {
     id?: string | number
     nickname?: string
@@ -156,6 +203,14 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
       followsOnly: raw.follows_only ?? raw.followsOnly ?? false,
       createdAt: createdLabel,
       followingAuthor: false,
+      isCapsule: raw.isCapsule === true,
+      unlockAtIso:
+        typeof raw.unlockAt === 'string' && raw.unlockAt
+          ? raw.unlockAt
+          : null,
+      capsuleLocked: raw.capsuleLocked === true,
+      isPublic: raw.isPublic !== false,
+      isRiverCatch: raw.isRiverCatch === true,
       ...overrides,
       isMine: raw.isMine ?? overrides?.isMine ?? false,
     }
@@ -201,6 +256,12 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     createdAt: createdLabel,
     isAnonymous: false,
     followingAuthor: raw.followingAuthor ?? false,
+    isCapsule: raw.isCapsule === true,
+    unlockAtIso:
+      typeof raw.unlockAt === 'string' && raw.unlockAt ? raw.unlockAt : null,
+    capsuleLocked: raw.capsuleLocked === true,
+    isPublic: raw.isPublic !== false,
+    isRiverCatch: raw.isRiverCatch === true,
     ...overrides,
     isMine: raw.isMine ?? overrides?.isMine ?? false,
   }
@@ -297,6 +358,9 @@ export const usePostStore = defineStore('post', () => {
       moodTag: data.mood,
       mood: data.mood,
       isAnonymous: data.isAnonymous ?? false,
+      isCapsule: data.isCapsule === true,
+      unlockAt: data.unlockAt ?? undefined,
+      isPublic: data.isCapsule ? data.isPublic !== false : undefined,
     }
     const res = await request.post<PostApiRow>('/posts', body)
     const row = res.data
@@ -313,18 +377,25 @@ export const usePostStore = defineStore('post', () => {
     posts.value.unshift(item)
   }
 
-  const toggleLike = async (id: string) => {
+  const toggleLike = async (
+    id: string,
+    hugOpts?: HugSendOptions,
+  ): Promise<{
+    ok: boolean
+    liked?: boolean
+    hugAnonymous?: boolean
+  }> => {
     const u = useUserStore()
     if (!u.isLoggedIn) {
       showToast('登录后才能拥抱')
-      return
+      return { ok: false }
     }
     if (huggingPostId.value) {
-      return
+      return { ok: false }
     }
     const target = posts.value.find((item) => item.id === id)
     if (!target) {
-      return
+      return { ok: false }
     }
     const prevLiked = target.liked
     const prevCount = target.likes
@@ -332,16 +403,36 @@ export const usePostStore = defineStore('post', () => {
     target.likes += target.liked ? 1 : -1
     huggingPostId.value = id
     try {
+      const payload =
+        !prevLiked && hugOpts
+          ? {
+              isAnonymous: hugOpts.isAnonymous === true,
+              content: hugOpts.content?.trim() || undefined,
+            }
+          : {}
       const res = await request.post<{
         success: boolean
         hugCount: number
         liked: boolean
-      }>(`/posts/${encodeURIComponent(id)}/hug`)
+      }>(`/posts/${encodeURIComponent(id)}/hug`, payload)
       if (res.data?.success) {
         target.likes = res.data.hugCount
         target.liked = res.data.liked
-        showToast(res.data.liked ? '已送出拥抱' : '已取消拥抱')
+        if (!res.data.liked) {
+          showToast('已取消拥抱')
+        } else if (!hugOpts?.isAnonymous) {
+          showToast('已送出拥抱')
+        }
+        return {
+          ok: true,
+          liked: res.data.liked,
+          hugAnonymous: hugOpts?.isAnonymous === true,
+        }
       }
+      target.liked = prevLiked
+      target.likes = prevCount
+      showToast('操作失败，请稍后再试')
+      return { ok: false }
     } catch (e) {
       target.liked = prevLiked
       target.likes = prevCount
@@ -349,6 +440,7 @@ export const usePostStore = defineStore('post', () => {
         ? '请先登录'
         : '操作失败，请稍后再试'
       showToast(msg)
+      return { ok: false }
     } finally {
       huggingPostId.value = null
     }
@@ -544,6 +636,101 @@ export const usePostStore = defineStore('post', () => {
   }
 
   /** 随机拾起一条他人心情（需登录，GET /posts/random） */
+  /** 合并单条帖子到 feed，便于详情/长河打捞后仍能 getPostById */
+  const ingestPostFromApiRow = (raw: PostApiRow): PostItem => {
+    const uid = useUserStore().userInfo?.id ?? null
+    const aid = raw.authorId ?? raw.author?.id
+    const item = mapPostFromApi(raw, {
+      isMine:
+        raw.isMine ??
+        (uid != null && aid != null && String(aid) === String(uid)),
+    })
+    const i = posts.value.findIndex((p) => p.id === item.id)
+    if (i >= 0) {
+      posts.value[i] = { ...posts.value[i], ...item }
+    } else {
+      posts.value.unshift(item)
+    }
+    return item
+  }
+
+  /** GET /posts/capsules/mine */
+  const fetchMyCapsulesList = async (): Promise<PostItem[]> => {
+    const res = await request.get<PostApiRow[]>('/posts/capsules/mine')
+    const data = Array.isArray(res.data) ? res.data : []
+    return data.map((row) => mapPostFromApi(row, { isMine: true }))
+  }
+
+  /**
+   * GET /posts/capsules/random：写入 store 供详情页使用。
+   * 接受任意 HTTP 状态（validateStatus 全放行），把后端 message 带回给页面用白 Toast 展示。
+   */
+  const salvageRiverCapsule =
+    async (): Promise<SalvageRiverCapsuleResult> => {
+      try {
+        const res = await request.get<PostApiRow | { message?: string }>(
+          '/posts/capsules/random',
+          { validateStatus: () => true },
+        )
+        const bodyMsg = parseNestMessage(res.data)
+
+        if (res.status === 200) {
+          const row = res.data as PostApiRow
+          if (!row || row.id == null || String(row.id).trim() === '') {
+            return {
+              ok: false,
+              item: null,
+              message: bodyMsg || '打捞结果为空',
+              emptyPool: false,
+            }
+          }
+          return { ok: true, item: ingestPostFromApiRow(row) }
+        }
+
+        if (res.status === 404) {
+          return {
+            ok: false,
+            item: null,
+            message:
+              bodyMsg || '长河里暂时还没有可打捞的公开胶囊',
+            emptyPool: true,
+          }
+        }
+
+        if (res.status === 401) {
+          return {
+            ok: false,
+            item: null,
+            message: bodyMsg || '请先登录',
+            emptyPool: false,
+          }
+        }
+
+        return {
+          ok: false,
+          item: null,
+          message: bodyMsg || '打捞失败，请稍后再试',
+          emptyPool: false,
+        }
+      } catch (e) {
+        let message = '打捞失败，请稍后再试'
+        if (axios.isAxiosError(e)) {
+          message =
+            parseNestMessage(e.response?.data) ||
+            (typeof e.message === 'string' && e.message.trim()
+              ? e.message
+              : '') ||
+            message
+        }
+        return {
+          ok: false,
+          item: null,
+          message,
+          emptyPool: false,
+        }
+      }
+    }
+
   const fetchRandomPickup = async (): Promise<PostItem> => {
     const res = await request.get<PostApiRow>('/posts/random')
     const row = res.data
@@ -645,6 +832,9 @@ export const usePostStore = defineStore('post', () => {
     fetchNextPage,
     refreshFeed,
     fetchRandomPickup,
+    fetchMyCapsulesList,
+    salvageRiverCapsule,
+    ingestPostFromApiRow,
     patchMineAvatarDisplay,
     toggleFollowOnPost,
   }

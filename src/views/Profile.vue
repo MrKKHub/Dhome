@@ -99,7 +99,7 @@ const settings: Array<{
   { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
 ]
 
-const centerTabs: CenterTab[] = ['我的发布', '我的收藏', '草稿箱']
+const centerTabs: CenterTab[] = ['我的发布', '我的收藏']
 
 const followerCount = ref(0)
 const followingCount = ref(0)
@@ -223,6 +223,7 @@ const handleLogout = async () => {
 </script>
 
 <template>
+  <!-- 整页随主区域滚动；Tab 内列表单独 profile-tab-inner-scroll 限高，避免长列表撑破屏 -->
   <section class="space-y-3 animate-fade-in">
     <div
       class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
@@ -341,88 +342,98 @@ const handleLogout = async () => {
         </button>
       </div>
 
-      <template v-if="activeTab === '我的发布'">
-        <div v-if="myPosts.length">
-          <PostCard
-            v-for="post in myPosts"
-            :key="post.id"
-            :post="post"
-            :hug-disabled="huggingPostId === post.id"
-            :favorite-disabled="favoritingPostId === post.id"
-            @like="store.toggleLike"
-            @favorite="store.toggleFavorite"
-            @open="openPost"
-            @comment="openPost"
-          />
-        </div>
+      <!-- v-show 保留三块 DOM，切换 Tab 时各自滚动位置互不影响 -->
+      <div>
         <div
-          v-else
-          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
+          v-show="activeTab === '我的发布'"
+          class="profile-local-scroll profile-tab-inner-scroll rounded-2xl"
         >
-          你还没有发布内容，去发布第一条动态吧。
-        </div>
-      </template>
-
-      <template v-else-if="activeTab === '我的收藏'">
-        <div v-if="myFavorites.length">
-          <PostCard
-            v-for="post in myFavorites"
-            :key="post.id"
-            :post="post"
-            :hug-disabled="huggingPostId === post.id"
-            :favorite-disabled="favoritingPostId === post.id"
-            @like="store.toggleLike"
-            @favorite="store.toggleFavorite"
-            @open="openPost"
-            @comment="openPost"
-          />
-        </div>
-        <div
-          v-else
-          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
-        >
-          暂无收藏内容，看到喜欢的先收藏起来。
-        </div>
-      </template>
-
-      <template v-else>
-        <div v-if="draftList.length" class="space-y-2">
+          <div v-if="myPosts.length" class="space-y-5 pb-2">
+            <PostCard
+              v-for="post in myPosts"
+              :key="post.id"
+              :post="post"
+              :hug-disabled="huggingPostId === post.id"
+              :favorite-disabled="favoritingPostId === post.id"
+              @favorite="store.toggleFavorite"
+              @open="openPost"
+              @comment="openPost"
+            />
+          </div>
           <div
-            v-for="draft in draftList"
-            :key="draft.id"
-            class="rounded-2xl bg-apricot/50 p-3"
+            v-else
+            class="profile-scroll-empty rounded-2xl bg-apricot/60 text-[13px] text-warmInk/50"
           >
-            <div class="mb-2 flex items-center justify-between">
-              <p class="text-[15px] font-semibold text-warmInk">{{ draft.title }}</p>
-              <span class="text-[12px] text-warmInk/40">{{ draft.updatedAt }}</span>
-            </div>
-            <p class="mb-3 text-[14px] leading-relaxed text-warmInk/75">{{ draft.content }}</p>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-3 py-1 text-[12px] text-brand transition-all duration-200 active:scale-[0.97]"
-              >
-                <PencilLine class="h-3.5 w-3.5" />
-                继续编辑
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-1 rounded-full bg-[#E8E0DA] px-3 py-1 text-[12px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
-                @click="removeDraft(draft.id)"
-              >
-                <FileText class="h-3.5 w-3.5" />
-                删除草稿
-              </button>
-            </div>
+            你还没有发布内容，去发布第一条动态吧。
           </div>
         </div>
+
         <div
-          v-else
-          class="rounded-2xl bg-apricot/60 py-8 text-center text-[13px] text-warmInk/50"
+          v-show="activeTab === '我的收藏'"
+          class="profile-local-scroll profile-tab-inner-scroll rounded-2xl"
         >
-          草稿箱为空，灵感来了随时记下来。
+          <div v-if="myFavorites.length" class="space-y-5 pb-2">
+            <PostCard
+              v-for="post in myFavorites"
+              :key="post.id"
+              :post="post"
+              :hug-disabled="huggingPostId === post.id"
+              :favorite-disabled="favoritingPostId === post.id"
+              @favorite="store.toggleFavorite"
+              @open="openPost"
+              @comment="openPost"
+            />
+          </div>
+          <div
+            v-else
+            class="profile-scroll-empty rounded-2xl bg-apricot/60 text-[13px] text-warmInk/50"
+          >
+            暂无收藏内容，看到喜欢的先收藏起来。
+          </div>
         </div>
-      </template>
+
+        <div
+          v-show="activeTab === '草稿箱'"
+          class="profile-local-scroll profile-tab-inner-scroll rounded-2xl"
+        >
+          <div v-if="draftList.length" class="space-y-2 pb-2">
+            <div
+              v-for="draft in draftList"
+              :key="draft.id"
+              class="rounded-2xl bg-apricot/50 p-3"
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[15px] font-semibold text-warmInk">{{ draft.title }}</p>
+                <span class="text-[12px] text-warmInk/40">{{ draft.updatedAt }}</span>
+              </div>
+              <p class="mb-3 text-[14px] leading-relaxed text-warmInk/75">{{ draft.content }}</p>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-3 py-1 text-[12px] text-brand transition-all duration-200 active:scale-[0.97]"
+                >
+                  <PencilLine class="h-3.5 w-3.5" />
+                  继续编辑
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full bg-[#E8E0DA] px-3 py-1 text-[12px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
+                  @click="removeDraft(draft.id)"
+                >
+                  <FileText class="h-3.5 w-3.5" />
+                  删除草稿
+                </button>
+              </div>
+            </div>
+          </div>
+          <div
+            v-else
+            class="profile-scroll-empty rounded-2xl bg-apricot/60 text-[13px] text-warmInk/50"
+          >
+            草稿箱为空，灵感来了随时记下来。
+          </div>
+        </div>
+      </div>
     </div>
 
     <button
@@ -434,7 +445,7 @@ const handleLogout = async () => {
       {{ userStore.isLoggedIn ? '退出登录' : '前往登录' }}
     </button>
 
-    <div class="grid grid-cols-2 gap-2">
+    <!-- <div class="grid grid-cols-2 gap-2">
       <button
         type="button"
         class="inline-flex items-center justify-center gap-1 rounded-full bg-white/95 py-2 text-[13px] text-warmInk/60 shadow-warm transition-all duration-200 active:scale-[0.97]"
@@ -449,6 +460,6 @@ const handleLogout = async () => {
         <Bell class="h-4 w-4 text-brand" />
         系统消息
       </button>
-    </div>
+    </div> -->
   </section>
 </template>

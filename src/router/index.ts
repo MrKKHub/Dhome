@@ -15,6 +15,11 @@ const router = createRouter({
       component: () => import('@/views/Detail.vue'),
     },
     {
+      path: '/capsules',
+      name: 'capsules',
+      component: () => import('@/views/Capsules.vue'),
+    },
+    {
       path: '/publish',
       name: 'publish',
       component: () => import('@/views/Publish.vue'),
@@ -40,6 +45,12 @@ const router = createRouter({
 router.beforeEach((to) => {
   const userStore = useUserStore()
   if (to.path === '/publish' && !userStore.isLoggedIn) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
+  }
+  if (to.path === '/capsules' && !userStore.isLoggedIn) {
     return {
       path: '/login',
       query: { redirect: to.fullPath },

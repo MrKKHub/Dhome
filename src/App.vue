@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
   Bell,
-  CircleUserRound,
   Home,
+  Hourglass,
   Plus,
   Sparkles,
   User,
@@ -27,6 +27,9 @@ const headerTitle = computed(() => {
   }
   if (route.path === '/notifications') {
     return '消息通知'
+  }
+  if (route.path === '/capsules') {
+    return '时光胶囊'
   }
   return 'DHome'
 })
@@ -71,16 +74,11 @@ const goNotifications = () => {
 
 const leftTab = { path: '/', icon: Home, label: '树洞' }
 const rightTabs = [
-  { path: '/detail/1', icon: CircleUserRound, label: '详情' },
+  { path: '/capsules', icon: Hourglass, label: '胶囊' },
   { path: '/profile', icon: User, label: '我的' },
 ]
 
-const activePath = computed(() => {
-  if (route.path.startsWith('/detail')) {
-    return '/detail/1'
-  }
-  return route.path
-})
+const activePath = computed(() => route.path)
 
 const goPublish = () => {
   router.push('/publish')
@@ -148,9 +146,10 @@ const goBack = () => {
           : 'pb-28 pt-16 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]'
       "
     >
+      <!-- key：路径变化时强制重建页面组件，避免复用导致生命周期/异步 chunk 异常后出现空白 -->
       <RouterView v-slot="{ Component }">
-        <Transition name="fade" mode="out-in">
-          <component :is="Component" />
+        <Transition name="fade">
+          <component :is="Component" :key="route.fullPath" />
         </Transition>
       </RouterView>
     </main>

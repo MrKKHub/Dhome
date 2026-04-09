@@ -1,0 +1,18 @@
+/**
+ * Toast 由 VanPopup 承载，根节点同时带 .van-popup 与 .van-toast。
+ * .van-popup 使用 --van-popup-background（默认白），与 .van-toast 的暗底+白字
+ * 在部分打包/层叠顺序下可能「白底盖住逻辑」，表现为白块上看不见字。
+ * 此处提高优先级，与 Vant 默认语义一致（暗底、浅色字）。
+ */
+body .van-popup.van-toast {
+  background: var(--van-toast-background, rgba(0, 0, 0, 0.75)) !important;
+  color: var(--van-toast-text-color, #fff) !important;
+}
+
+body .van-popup.van-toast .van-toast__text {
+  color: inherit;
+}
+
+body .van-popup.van-toast .van-toast__loading {
+  color: var(--van-toast-loading-icon-color, #fff) !important;
+}
