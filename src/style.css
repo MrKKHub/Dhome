@@ -6,6 +6,11 @@
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Segoe UI', sans-serif;
+  /**
+   * 帖子卡片日期：纤细宋楷感（Noto Serif SC）+ 系统楷体回退（离线/内网仍可用）
+   */
+  --font-post-card-date:
+    'Noto Serif SC', 'STKaiti', '楷体', 'KaiTi', serif;
 }
 
 * {

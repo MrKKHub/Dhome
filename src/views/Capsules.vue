@@ -85,6 +85,14 @@ function openDetail(id: string) {
   router.push(`/detail/${encodeURIComponent(id)}`)
 }
 
+/** 软删后同步本地「我的胶囊 / 本次打捞」列表（store 已在 PostCard 内更新） */
+function onCapsulePostDeleted(id: string) {
+  myCapsules.value = myCapsules.value.filter((p) => p.id !== id)
+  if (riverCatch.value?.id === id) {
+    riverCatch.value = null
+  }
+}
+
 /** 我的胶囊：未到解锁时间（用于高亮边框，与接口 capsuleLocked 无关） */
 function isMyCapsuleSealed(p: PostItem) {
   if (!p.isCapsule || !p.unlockAtIso) {
@@ -189,6 +197,7 @@ watch(tab, (t) => {
               @favorite="store.toggleFavorite"
               @comment="(id) => openDetail(id)"
               @open="openDetail"
+              @deleted="onCapsulePostDeleted"
             />
           </div>
         </div>
@@ -230,6 +239,7 @@ watch(tab, (t) => {
           @favorite="store.toggleFavorite"
           @comment="(id) => openDetail(id)"
           @open="openDetail"
+          @deleted="onCapsulePostDeleted"
         />
       </div>
       <div

@@ -19,6 +19,15 @@ export const MOOD_BADGE_CLASS: Record<PostMood, string> = {
   疲惫: 'bg-[#EEEAE6] text-[#6B5E58]',
 }
 
+/** 与发布/卡片一致的心情标签色；未知文案时退回中性色 */
+export function resolveMoodBadgeClass(mood: string): string {
+  const key = mood.trim() as PostMood
+  if (MOOD_OPTIONS.includes(key)) {
+    return MOOD_BADGE_CLASS[key]
+  }
+  return 'bg-[#F5EDE4]/90 text-[#6B5E58]'
+}
+
 /** html2canvas 克隆文档里 Tailwind 可能不全，心情标签用内联色保证可见 */
 export const MOOD_BADGE_POSTER_STYLE: Record<
   PostMood,

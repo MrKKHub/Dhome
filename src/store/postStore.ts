@@ -54,6 +54,8 @@ export interface PostItem {
   anonymousAvatarKey?: string
   /** 当前用户是否已关注作者（非匿名帖） */
   followingAuthor?: boolean
+  /** 作者账号注册时间 ISO8601，非匿名帖用于「时光勋章」入住天数 */
+  authorRegisteredAt?: string
   /** 时间胶囊 */
   isCapsule?: boolean
   /** 解锁时间 ISO（用于倒计时） */
@@ -70,6 +72,25 @@ export interface PostItem {
   isRiverCatch?: boolean
   posterSourceContent?: string
   posterSourceImages?: string[]
+}
+
+/** GET /user/:id/profile 聚合页（与轻量 /user/profile/:id 区分） */
+export interface UserProfilePagePayload {
+  success?: boolean
+  id?: string
+  nickname?: string
+  avatar?: string | null
+  bio?: string | null
+  followerCount?: number
+  followingCount?: number
+  isFollowedByViewer?: boolean
+  isViewerSelf?: boolean
+  moodLast7Days?: Array<{ mood: string; count: number }>
+  moodPosts?: PostApiRow[]
+  capsulePosts?: PostApiRow[]
+  /** 账号注册时间 ISO8601，个人主页「时光勋章」 */
+  registeredAt?: string
+  registered_at?: string
 }
 
 /** 时光长河随机打捞结果（HTTP 层在 store 内消化，由页面弹 Vant Toast） */
@@ -113,7 +134,7 @@ export type HugSendOptions = {
 /** 后端 /posts 单条结构（Prisma + author；兼容旧字段） */
 interface PostApiRow {
   id: number | string
-  authorId?: string | number
+  authorId?: string | number | null
   title?: string
   content?: string
   images?: unknown
@@ -151,11 +172,13 @@ interface PostApiRow {
   isOpened?: boolean
   posterSourceContent?: string
   posterSourceImages?: unknown
+  authorRegisteredAt?: string
   author?: {
     id?: string | number
     nickname?: string
     avatar?: string | null
     avatar_url?: string
+    createdAt?: string
   }
   user?: {
     nickname?: string
@@ -188,6 +211,32 @@ function normalizeMood(raw: string | undefined): PostMood {
   return '平静'
 }
 
+/** 解析作者注册时间：顶栏 authorRegisteredAt、author.createdAt / snake_case；Date.parse 校验，不依赖是否含字符 T */
+function pickAuthorRegisteredAt(raw: PostApiRow): string | undefined {
+  const candidates: string[] = []
+  const push = (v: unknown) => {
+    if (typeof v === 'string' && v.trim()) {
+      candidates.push(v.trim())
+    }
+  }
+  push(raw.authorRegisteredAt)
+  const author = raw.author as
+    | { createdAt?: string; created_at?: string }
+    | undefined
+  push(author?.createdAt)
+  push(author?.created_at)
+  const snake = (raw as { author_registered_at?: string }).author_registered_at
+  push(snake)
+
+  for (const s of candidates) {
+    const t = Date.parse(s)
+    if (!Number.isNaN(t)) {
+      return s
+    }
+  }
+  return undefined
+}
+
 function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostItem {
   const sid =
     raw.id != null && String(raw.id).trim() !== '' ? String(raw.id) : ''
@@ -199,7 +248,10 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
       : formatRelativeTime(created)
 
   if (raw.isAnonymous) {
-    const anName = raw.anonymousName?.trim() || '森林访客'
+    const anName =
+      (typeof raw.author?.nickname === 'string' && raw.author.nickname.trim()) ||
+      raw.anonymousName?.trim() ||
+      '森林访客'
     const anKey = raw.anonymousAvatar?.trim() || 'leaf'
     return {
       id: sid,
@@ -261,10 +313,10 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
   const avatar = resolveAvatarUrl(trimmed, nick)
 
   const aid =
-    raw.author?.id != null
-      ? String(raw.author.id)
-      : raw.authorId != null
-        ? String(raw.authorId)
+    raw.authorId != null && raw.authorId !== ''
+      ? String(raw.authorId)
+      : raw.author?.id != null
+        ? String(raw.author.id)
         : undefined
   return {
     id: sid,
@@ -300,6 +352,18 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     ),
     ...overrides,
     isMine: raw.isMine ?? overrides?.isMine ?? false,
+    /** 帖子字段优先；个人主页映射时可由 overrides 传入资料页 registeredAt 兜底 */
+    authorRegisteredAt: (() => {
+      const fromRaw = pickAuthorRegisteredAt(raw)
+      const ov = overrides?.authorRegisteredAt
+      const fromOv =
+        typeof ov === 'string' &&
+        ov.trim() &&
+        !Number.isNaN(Date.parse(ov.trim()))
+          ? ov.trim()
+          : undefined
+      return fromRaw ?? fromOv
+    })(),
   }
 }
 
@@ -734,6 +798,40 @@ export const usePostStore = defineStore('post', () => {
     }
   }
 
+  /** DELETE /posts/:id：作者软删，无感从 feed 移除 */
+  const deletePostByAuthor = async (
+    postId: string,
+  ): Promise<{ ok: boolean; message?: string }> => {
+    const id = postId.trim()
+    if (!id) {
+      return { ok: false, message: '帖子无效' }
+    }
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      return { ok: false, message: '请先登录' }
+    }
+    try {
+      await request.delete(`/posts/${encodeURIComponent(id)}`)
+      const i = posts.value.findIndex((p) => p.id === id)
+      if (i >= 0) {
+        posts.value.splice(i, 1)
+      }
+      if (commentsByPost.value[id]) {
+        delete commentsByPost.value[id]
+      }
+      showToast('心情已清理')
+      return { ok: true }
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 401) {
+        return { ok: false, message: '请先登录' }
+      }
+      const msg = axios.isAxiosError(e)
+        ? parseNestMessage(e.response?.data)
+        : undefined
+      return { ok: false, message: msg || '删除失败，请稍后再试' }
+    }
+  }
+
   const ingestPostFromApiRow = (raw: PostApiRow): PostItem => {
     const uid = useUserStore().userInfo?.id ?? null
     const aid = raw.authorId ?? raw.author?.id
@@ -827,6 +925,60 @@ export const usePostStore = defineStore('post', () => {
         }
       }
     }
+
+  /**
+   * 个人主页：心情帖 + 时间胶囊分栏；不写入全局 feed，避免污染首页列表。
+   */
+  const fetchUserProfilePage = async (
+    userId: string,
+  ): Promise<{
+    profile: UserProfilePagePayload
+    moodPosts: PostItem[]
+    capsulePosts: PostItem[]
+  } | null> => {
+    try {
+      const res = await request.get<UserProfilePagePayload>(
+        `/user/${encodeURIComponent(userId)}/profile`,
+      )
+      const d = res.data
+      if (!d || d.success === false) {
+        return null
+      }
+      const uid = useUserStore().userInfo?.id ?? null
+      const profileRegRaw =
+        typeof d.registeredAt === 'string' && d.registeredAt.trim()
+          ? d.registeredAt.trim()
+          : typeof d.registered_at === 'string' && d.registered_at.trim()
+            ? d.registered_at.trim()
+            : ''
+      const profileRegIso =
+        profileRegRaw && !Number.isNaN(Date.parse(profileRegRaw))
+          ? profileRegRaw
+          : undefined
+
+      const mapList = (rows: PostApiRow[] | undefined): PostItem[] => {
+        if (!Array.isArray(rows)) {
+          return []
+        }
+        return rows.map((r) =>
+          mapPostFromApi(r, {
+            isMine:
+              r.isMine ??
+              (uid != null &&
+                String(r.authorId ?? r.author?.id ?? '') === String(uid)),
+            ...(profileRegIso ? { authorRegisteredAt: profileRegIso } : {}),
+          }),
+        )
+      }
+      return {
+        profile: d,
+        moodPosts: mapList(d.moodPosts),
+        capsulePosts: mapList(d.capsulePosts),
+      }
+    } catch {
+      return null
+    }
+  }
 
   const fetchRandomPickup = async (): Promise<PostItem> => {
     const res = await request.get<PostApiRow>('/posts/random')
@@ -929,11 +1081,13 @@ export const usePostStore = defineStore('post', () => {
     fetchNextPage,
     refreshFeed,
     fetchRandomPickup,
+    fetchUserProfilePage,
     fetchMyCapsulesList,
     salvageRiverCapsule,
     ingestPostFromApiRow,
     fetchPostDetail,
     openCapsuleByAuthor,
+    deletePostByAuthor,
     patchMineAvatarDisplay,
     toggleFollowOnPost,
   }

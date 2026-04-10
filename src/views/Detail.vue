@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Heart, Sparkles, UserPlus } from 'lucide-vue-next'
 import axios from 'axios'
 import request from '@/api/request'
@@ -13,6 +13,7 @@ import { useUserStore } from '@/store/userStore'
 import { storeToRefs } from 'pinia'
 
 const route = useRoute()
+const router = useRouter()
 const store = usePostStore()
 const { huggingPostId, favoritingPostId } = storeToRefs(store)
 const userStore = useUserStore()
@@ -110,6 +111,14 @@ function onCapsuleCeremonyComplete() {
   const id = postId.value
   if (id) {
     void store.fetchComments(id)
+  }
+}
+
+function onPostDeletedFromDetail() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.replace('/')
   }
 }
 
@@ -251,6 +260,7 @@ const submitComment = async () => {
         @favorite="store.toggleFavorite"
         @open="() => null"
         @comment="() => null"
+        @deleted="onPostDeletedFromDetail"
       />
     </div>
 

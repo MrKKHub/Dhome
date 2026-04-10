@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, useAttrs } from 'vue'
+import { useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
 import QRCode from 'qrcode'
 import {
@@ -14,6 +15,7 @@ import {
 } from 'lucide-vue-next'
 import {
   closeToast,
+  showConfirmDialog,
   showDialog,
   showFailToast,
   showLoadingToast,
@@ -37,6 +39,7 @@ import {
   waitPosterImagesLoaded,
 } from '@/utils/posterHtml2Canvas'
 import { getPostShareUrl, isWeChatBrowser } from '@/utils/shareEnv'
+import { getStayInfo } from '@/utils/getStayInfo'
 import type { PostItem } from '@/store/postStore'
 
 defineOptions({ inheritAttrs: false })
@@ -50,6 +53,7 @@ const attrs = useAttrs()
 
 const postStore = usePostStore()
 const userStore = useUserStore()
+const router = useRouter()
 const leafBtnRef = ref<HTMLButtonElement | null>(null)
 const hugBtnRef = ref<HTMLButtonElement | null>(null)
 /** 发送拥抱前填写匿名与暖心话 */
@@ -113,6 +117,10 @@ const props = withDefaults(
      * 胶囊馆：作者看自己未到期胶囊时也显示信封壳与倒计时（与首页「已解密」展示区分）
      */
     museumMode?: boolean
+    /**
+     * 本人注册时间 ISO（仅「我的发布」等场景：帖体未带 authorRegisteredAt 时兜底）
+     */
+    fallbackAuthorRegisteredAt?: string
   }>(),
   {
     hugDisabled: false,
@@ -122,17 +130,77 @@ const props = withDefaults(
 )
 
 /** 单图略大展示；多图沿用宫格小缩略 */
+/** 呼吸动画在 .post-image 包裹层；内层 .post-card-feed-img 负责按压 transform（与 float 分层避免互斥） */
+const postImageWrapClass = computed(() =>
+  props.post.images.length === 1
+    ? 'post-image w-full min-w-0'
+    : 'post-image h-24 w-full min-w-0',
+)
+
 const postImageThumbClass = computed(() =>
   props.post.images.length === 1
-    ? 'w-full max-h-[220px] min-h-0 cursor-zoom-in rounded-2xl object-cover transition-opacity active:opacity-90'
-    : 'h-24 w-full cursor-zoom-in rounded-2xl object-cover transition-opacity active:opacity-90',
+    ? 'post-card-feed-img w-full max-h-[220px] min-h-0 cursor-zoom-in object-cover active:opacity-90'
+    : 'post-card-feed-img h-full w-full cursor-zoom-in object-cover active:opacity-90',
 )
 
 const emit = defineEmits<{
   favorite: [id: string]
   comment: [id: string]
   open: [id: string]
+  /** 软删成功后通知胶囊馆等本地列表同步 */
+  deleted: [id: string]
 }>()
+
+/** 仅本人且已登录：与后端 isMine / authorId 一致 */
+const showOwnerMenu = computed(() => {
+  if (!props.post.isMine || !userStore.isLoggedIn) {
+    return false
+  }
+  const uid = userStore.userInfo?.id
+  if (!uid) {
+    return false
+  }
+  if (props.post.authorId != null) {
+    return String(props.post.authorId) === String(uid)
+  }
+  return true
+})
+
+const ownerSheetOpen = ref(false)
+const ownerSheetActions = [{ name: '删除', color: '#ee0a24' }]
+
+function openOwnerSheet(e: MouseEvent) {
+  e.stopPropagation()
+  ownerSheetOpen.value = true
+}
+
+function onOwnerSheetSelect(item: { name: string }) {
+  ownerSheetOpen.value = false
+  if (item.name === '删除') {
+    void runDeletePostFlow()
+  }
+}
+
+async function runDeletePostFlow() {
+  try {
+    await showConfirmDialog({
+      title: '确认删除',
+      message: '确定要永远忘记这段心情吗？删除后不可恢复。',
+      confirmButtonText: '删除',
+      cancelButtonText: '再想想',
+    })
+  } catch {
+    return
+  }
+  const r = await postStore.deletePostByAuthor(props.post.id)
+  if (!r.ok) {
+    if (r.message) {
+      showFailToast(r.message)
+    }
+    return
+  }
+  emit('deleted', props.post.id)
+}
 
 const imageClass = computed(() => {
   if (props.post.images.length === 1) {
@@ -149,6 +217,23 @@ const watercolorLayers = computed(() => MOOD_WATERCOLOR_LAYERS[props.post.mood])
 const moodSurfaceColor = computed(
   () => MOOD_CARD_SURFACE_COLOR[props.post.mood],
 )
+
+/** 时光勋章：时间戳旁轻量展示作者入住天数（匿名帖不展示） */
+const authorStayLine = computed(() => {
+  if (props.post.isAnonymous) {
+    return null
+  }
+  const fromPost = props.post.authorRegisteredAt?.trim()
+  const fromFallback =
+    props.post.isMine && props.fallbackAuthorRegisteredAt?.trim()
+      ? props.fallbackAuthorRegisteredAt.trim()
+      : ''
+  const iso = fromPost || fromFallback
+  if (!iso || Number.isNaN(Date.parse(iso))) {
+    return null
+  }
+  return getStayInfo(iso)
+})
 
 /** 未开启胶囊：距解锁天数（向上取整） */
 const capsuleDaysLeft = computed(() => {
@@ -445,6 +530,27 @@ const onForestFollowClick = async (e: MouseEvent) => {
     void playLeafConfetti(leafBtnRef.value)
   }
 }
+
+/** 头像/昵称：匿名隔绝 + 未登录引导登录后再进主页 */
+function onProfileHeaderClick(e: Event) {
+  e.stopPropagation()
+  if (props.post.isAnonymous) {
+    showToast('Ta 选择了隐身，无法查看主页')
+    return
+  }
+  const aid = props.post.authorId
+  if (!aid) {
+    return
+  }
+  if (!userStore.isLoggedIn) {
+    router.push({
+      path: '/login',
+      query: { redirect: `/user/${encodeURIComponent(aid)}` },
+    })
+    return
+  }
+  router.push(`/user/${encodeURIComponent(aid)}`)
+}
 </script>
 
 <template>
@@ -452,12 +558,13 @@ const onForestFollowClick = async (e: MouseEvent) => {
   <div class="contents">
   <article
     v-bind="attrs"
-    class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-[#E8DDD4]/90 shadow-warm transition-[transform,box-shadow] duration-300 ease-out hover:scale-[1.01] hover:shadow-[0_18px_48px_-12px_rgba(196,164,132,0.22)] active:scale-[0.98]"
+    class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-[#E8DDD4]/70"
+    :class="post.isAnonymous ? 'post-card-anonymous-shell' : ''"
     @click="openDetail"
   >
-    <!-- 心情主色（实色 + transition-colors，叠加水彩晕染） -->
+    <!-- 心情主色：略透明以透出底层暖米底 -->
     <div
-      class="pointer-events-none absolute inset-0 transition-colors duration-700 ease-in-out"
+      class="card-mood-fill pointer-events-none absolute inset-0 transition-colors duration-700 ease-in-out"
       :style="{ backgroundColor: moodSurfaceColor }"
       aria-hidden="true"
     />
@@ -496,11 +603,23 @@ const onForestFollowClick = async (e: MouseEvent) => {
       </g>
     </svg>
 
+    <div
+      v-if="post.isAnonymous"
+      class="post-card-anonymous-mist pointer-events-none absolute inset-0 rounded-[28px]"
+      aria-hidden="true"
+    />
     <div class="card-grain pointer-events-none absolute inset-0" aria-hidden="true" />
 
-    <div class="relative z-[1] p-4">
+    <div class="card-inner relative z-[1] p-4">
       <div class="mb-3 flex items-start justify-between gap-2">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
+        <div
+          class="flex min-w-0 flex-1 items-center gap-2 rounded-xl py-0.5 pl-0.5 pr-2 transition-opacity active:opacity-85"
+          :class="post.isAnonymous ? 'cursor-default' : 'cursor-pointer'"
+          role="button"
+          tabindex="0"
+          @click="onProfileHeaderClick"
+          @keydown.enter.prevent="onProfileHeaderClick"
+        >
           <ForestAnonymousAvatar
             v-if="post.isAnonymous"
             :icon-key="post.anonymousAvatarKey"
@@ -538,10 +657,30 @@ const onForestFollowClick = async (e: MouseEvent) => {
                 />
               </button>
             </div>
-            <p class="text-[12px] leading-relaxed text-[#8B7B7B]">{{ post.createdAt }}</p>
+            <p
+              class="post-card-date flex flex-wrap items-center gap-x-1 gap-y-0.5"
+            >
+              <span>{{ post.createdAt }}</span>
+              <template v-if="authorStayLine">
+                <span class="text-[#8c8c8c]" aria-hidden="true">·</span>
+                <span class="card-stay-days"
+                  >{{ authorStayLine.icon }} {{ authorStayLine.days }}d</span
+                >
+              </template>
+            </p>
           </div>
         </div>
-        <div class="flex shrink-0 flex-col items-end gap-1">
+        <div class="flex shrink-0 items-start gap-0.5">
+          <button
+            v-if="showOwnerMenu"
+            type="button"
+            class="rounded-full p-1.5 text-warmInk/45 transition-colors active:scale-95 active:bg-black/[0.04]"
+            aria-label="更多操作"
+            @click="openOwnerSheet"
+          >
+            <van-icon name="ellipsis" class="text-[18px]" />
+          </button>
+          <div class="flex flex-col items-end gap-1">
           <span
             class="rounded-full px-2.5 py-1 text-[11px] font-medium leading-none"
             :class="moodClass"
@@ -560,6 +699,7 @@ const onForestFollowClick = async (e: MouseEvent) => {
           >
             时间胶囊
           </span>
+          </div>
         </div>
       </div>
 
@@ -628,23 +768,31 @@ const onForestFollowClick = async (e: MouseEvent) => {
           >
             {{ post.title }}
           </h3>
-          <p class="mb-3 text-[15px] leading-relaxed text-[#6B5A5A]">
+          <p class="post-card-body-text text-[15px] leading-relaxed text-[#6B5A5A]">
             {{ post.content }}
           </p>
 
           <div
             v-if="post.images.length"
-            class="mb-0 grid gap-2"
-            :class="imageClass"
+            class="post-card-media"
           >
-            <img
-              v-for="(image, idx) in post.images"
-              :key="`${post.id}-${idx}`"
-              :src="image"
-              alt="post-image"
-              :class="postImageThumbClass"
-              @click.stop="openImagePreview(image)"
-            />
+            <div
+              class="grid gap-2"
+              :class="imageClass"
+            >
+              <div
+                v-for="(image, idx) in post.images"
+                :key="`${post.id}-${idx}`"
+                :class="postImageWrapClass"
+              >
+                <img
+                  :src="image"
+                  alt="post-image"
+                  :class="postImageThumbClass"
+                  @click.stop="openImagePreview(image)"
+                />
+              </div>
+            </div>
           </div>
         </div>
         <div
@@ -655,7 +803,7 @@ const onForestFollowClick = async (e: MouseEvent) => {
       </div>
 
       <div
-        class="flex items-center justify-between border-t border-[#E8DDD4]/80 pt-3"
+        class="post-card-actions flex items-center justify-between border-t border-[#E8DDD4]/80"
         @click.stop
       >
         <div class="relative flex min-w-0 flex-1 justify-start">
@@ -743,6 +891,14 @@ const onForestFollowClick = async (e: MouseEvent) => {
       </div>
     </div>
   </article>
+
+  <van-action-sheet
+    v-model:show="ownerSheetOpen"
+    :actions="ownerSheetActions"
+    cancel-text="取消"
+    close-on-click-action
+    @select="onOwnerSheetSelect"
+  />
 
   <PostShareMenu
     v-model:show="shareSheetOpen"
@@ -893,6 +1049,131 @@ const onForestFollowClick = async (e: MouseEvent) => {
 .img-preview-fade-enter-from,
 .img-preview-fade-leave-to {
   opacity: 0;
+}
+
+/* 卡片：暖米底、10s 极轻呼吸、0.4s 全量过渡；悬停/按压上浮与阴影增强 */
+.card-shell {
+  background-color: #faf9f6;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.045);
+  animation: post-card-breathe 10s ease-in-out infinite;
+  transition: all 0.4s ease;
+}
+
+.card-shell:hover {
+  animation-play-state: paused;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.card-shell:active {
+  animation-play-state: paused;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+@keyframes post-card-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.045);
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.985;
+    box-shadow: 0 9px 26px rgba(0, 0, 0, 0.052);
+    transform: scale(1.002);
+  }
+}
+
+.card-mood-fill {
+  opacity: 0.88;
+}
+
+/* 匿名帖：雾气蒙层 + 微冷调边框，与实名卡片区分 */
+.post-card-anonymous-shell {
+  border-color: rgba(186, 199, 215, 0.55);
+}
+
+.post-card-anonymous-mist {
+  z-index: 0;
+  background: linear-gradient(
+    132deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(228, 233, 242, 0.35) 42%,
+    rgba(238, 232, 248, 0.3) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+}
+
+/* 正文与配图、配图与操作栏之间各 16px 留白 */
+.post-card-body-text {
+  margin-bottom: 16px;
+}
+
+.post-card-media {
+  margin-bottom: 16px;
+}
+
+.post-card-actions {
+  padding-top: 16px;
+}
+
+/* 配图容器：全局呼吸浮动（7s，介于 6–8s，不依赖 :hover） */
+.post-image {
+  animation: post-card-img-float 7s ease-in-out infinite;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 图片壳：圆角、细白边 + 极淡外轮廓 */
+.post-card-feed-img {
+  border-radius: 16px;
+  border: 0.5px solid rgba(255, 255, 255, 0.4);
+  outline: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+/**
+ * 内层图：定向 drop-shadow + 触摸按压（:active）
+ * transform 只写在内层，与外层 translateY 浮动合成，互不覆盖
+ */
+.post-image .post-card-feed-img {
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.15));
+  will-change: transform;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.post-image .post-card-feed-img:active {
+  transform: scale(0.98) translateY(2px);
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.08));
+}
+
+@keyframes post-card-img-float {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* 日期：纤细楷体栈（见 style.css 变量与 index.html Noto Serif SC） */
+.post-card-date {
+  margin-top: 2px;
+  font-family: var(--font-post-card-date);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: #8c8c8c;
+  letter-spacing: 0.02em;
+}
+
+.card-stay-days {
+  font-size: 11px;
+  color: #8c8c8c;
+  font-weight: 300;
 }
 
 .card-grain {

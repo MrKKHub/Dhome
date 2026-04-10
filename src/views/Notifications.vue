@@ -2,13 +2,15 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bell, CheckCheck } from 'lucide-vue-next'
+import axios from 'axios'
+import request from '@/api/request'
+import MessageItem from '@/components/MessageItem.vue'
 import {
-  formatNotificationText,
   useNotificationStore,
+  type NotificationItem,
 } from '@/store/notificationStore'
 import { useUserStore } from '@/store/userStore'
 import { useAppToast } from '@/composables/useAppToast'
-import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -56,6 +58,97 @@ const formatTime = (iso: string) => {
   const d = Math.floor(h / 24)
   return `${d} 天前`
 }
+
+/** 是否可跳转真实用户主页（匿名通知等 sender 可能为占位 ID） */
+const canOpenUserProfile = (msg: NotificationItem) => {
+  const uid = msg.sourceId ?? msg.sender?.id
+  return typeof uid === 'number' && uid > 0
+}
+
+/** 头像：始终进对方个人主页（与整行分发解耦） */
+const handleAvatarClick = (msg: NotificationItem) => {
+  if (!canOpenUserProfile(msg)) {
+    toast.info('无法查看该用户')
+    return
+  }
+  const uid = msg.sourceId ?? msg.sender?.id
+  if (uid == null) return
+  router.push(`/user/${uid}`)
+}
+
+/**
+ * 消息分发：关注 -> 用户详情；点赞类/评论 -> 动态详情（与现有路由一致，可用 /user/detail、/post/detail 别名）
+ * 点击时标记已读并刷新未读数，供底栏红点同步
+ */
+const handleMessageClick = async (msg: NotificationItem) => {
+  if (!msg.isRead) {
+    const ok = await notif.markOneRead(msg.id)
+    if (!ok) {
+      toast.fail('标记已读失败，请稍后再试')
+    }
+  }
+
+  const t = (msg.type || '').toUpperCase()
+  // 关注
+  if (t === 'FOLLOW') {
+    if (!canOpenUserProfile(msg)) {
+      toast.info('无法查看该用户')
+      return
+    }
+    const uid = msg.sourceId ?? msg.sender?.id
+    if (uid == null) return
+    router.push(`/user/${uid}`)
+    return
+  }
+
+  // 互动：拥抱、评论、点赞（后端若扩展 LIKE 可命中）
+  if (
+    t === 'HUG' ||
+    t === 'COMMENT' ||
+    t === 'LIKE' ||
+    t === 'like'.toUpperCase() ||
+    t === 'comment'.toUpperCase()
+  ) {
+    const pid = (msg.targetId ?? msg.postId ?? '').trim()
+    if (!pid) {
+      toast.info('该内容暂不可用')
+      return
+    }
+    try {
+      await request.get(`/posts/${encodeURIComponent(pid)}`)
+      router.push(`/detail/${encodeURIComponent(pid)}`)
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 404) {
+        toast.fail('该动态已消失在树林里')
+        return
+      }
+      toast.fail('暂时无法打开，请稍后再试')
+    }
+    return
+  }
+
+  const pid = (msg.targetId ?? msg.postId ?? '').trim()
+  if (pid) {
+    try {
+      await request.get(`/posts/${encodeURIComponent(pid)}`)
+      router.push(`/detail/${encodeURIComponent(pid)}`)
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 404) {
+        toast.fail('该动态已消失在树林里')
+        return
+      }
+      toast.fail('暂时无法打开，请稍后再试')
+    }
+    return
+  }
+
+  if (canOpenUserProfile(msg)) {
+    const uid = msg.sourceId ?? msg.sender?.id
+    if (uid != null) {
+      router.push(`/user/${uid}`)
+    }
+  }
+}
 </script>
 
 <template>
@@ -86,29 +179,12 @@ const formatTime = (iso: string) => {
     </div>
 
     <ul v-else-if="notif.items.length" class="space-y-2">
-      <li
-        v-for="n in notif.items"
-        :key="n.id"
-        class="flex gap-3 rounded-[22px] border border-[#F0E8E0]/70 bg-white/95 p-3 shadow-warm backdrop-blur-sm"
-        :class="n.isRead ? 'opacity-75' : ''"
-      >
-        <img
-          :src="resolveAvatarUrl(n.sender.avatar, n.sender.nickname)"
-          alt=""
-          class="h-11 w-11 shrink-0 rounded-full border border-[#F0E8E0] object-cover"
-        />
-        <div class="min-w-0 flex-1">
-          <p class="text-[14px] leading-relaxed text-warmInk">
-            {{ formatNotificationText(n) }}
-          </p>
-          <p class="mt-1 text-[11px] text-warmInk/40">
-            {{ formatTime(n.createdAt) }}
-          </p>
-        </div>
-        <span
-          v-if="!n.isRead"
-          class="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand"
-          aria-hidden="true"
+      <li v-for="n in notif.items" :key="n.id">
+        <MessageItem
+          :msg="n"
+          :time-label="formatTime(n.createdAt)"
+          @row-click="handleMessageClick"
+          @avatar-click="handleAvatarClick"
         />
       </li>
     </ul>

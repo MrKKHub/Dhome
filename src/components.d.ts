@@ -14,6 +14,7 @@ declare module 'vue' {
     CapsuleRevealCeremony: typeof import('./components/CapsuleRevealCeremony.vue')['default']
     ForestAnonymousAvatar: typeof import('./components/ForestAnonymousAvatar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
+    MessageItem: typeof import('./components/MessageItem.vue')['default']
     PickupMoodModal: typeof import('./components/PickupMoodModal.vue')['default']
     PostCard: typeof import('./components/PostCard.vue')['default']
     PostListSkeleton: typeof import('./components/PostListSkeleton.vue')['default']
@@ -24,9 +25,13 @@ declare module 'vue' {
     VanActionSheet: typeof import('vant/es')['ActionSheet']
     VanCalendar: typeof import('vant/es')['Calendar']
     VanField: typeof import('vant/es')['Field']
+    VanIcon: typeof import('vant/es')['Icon']
     VanList: typeof import('vant/es')['List']
     VanLoading: typeof import('vant/es')['Loading']
+    VanNavBar: typeof import('vant/es')['NavBar']
     VanPopup: typeof import('vant/es')['Popup']
     VanPullRefresh: typeof import('vant/es')['PullRefresh']
+    VanTab: typeof import('vant/es')['Tab']
+    VanTabs: typeof import('vant/es')['Tabs']
   }
 }

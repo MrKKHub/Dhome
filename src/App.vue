@@ -99,9 +99,10 @@ const goBack = () => {
 
 <template>
   <div class="relative min-h-dvh bg-warmCream">
+    <!-- 顶栏复位：与安全区对齐，DHome / 铃铛回到舒适的状态栏区域 -->
     <header
       v-if="!hideShellOnAuth"
-      class="fixed inset-x-0 top-0 z-30 w-full border-b border-[#F0E8E0]/70 bg-white/75 px-4 py-3 backdrop-blur-xl"
+      class="fixed inset-x-0 top-0 z-30 w-full border-b border-[#F0E8E0]/70 bg-white/75 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-xl"
     >
       <div class="relative flex min-h-[28px] items-center justify-center">
         <button

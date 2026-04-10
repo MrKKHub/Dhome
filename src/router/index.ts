@@ -14,6 +14,11 @@ const router = createRouter({
       name: 'detail',
       component: () => import('@/views/Detail.vue'),
     },
+    /** 与产品文档路径对齐，重定向到现有详情路由 */
+    {
+      path: '/post/detail/:id',
+      redirect: (to) => ({ path: `/detail/${to.params.id}` }),
+    },
     {
       path: '/capsules',
       name: 'capsules',
@@ -28,6 +33,16 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: () => import('@/views/Profile.vue'),
+    },
+    {
+      path: '/user/:id',
+      name: 'user-detail',
+      component: () => import('@/views/UserDetail.vue'),
+    },
+    /** 与产品文档路径对齐，重定向到现有用户主页 */
+    {
+      path: '/user/detail/:id',
+      redirect: (to) => ({ path: `/user/${to.params.id}` }),
     },
     {
       path: '/login',

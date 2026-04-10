@@ -4,6 +4,7 @@ import {
   Bell,
   ChevronRight,
   FileText,
+  Home,
   KeyRound,
   LogOut,
   PencilLine,
@@ -81,12 +82,18 @@ const accountLine = computed(() => {
 })
 
 const settings: Array<{
-  icon: typeof UserRound | typeof KeyRound | typeof Bell
+  icon: typeof UserRound | typeof KeyRound | typeof Bell | typeof Home
   label: string
   desc: string
-  action?: 'notifications' | 'changePassword'
+  action?: 'notifications' | 'changePassword' | 'myHome'
 }> = [
   // { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
+  {
+    icon: Home,
+    label: '我的主页',
+    desc: '查看对外展示的木心主页',
+    action: 'myHome',
+  },
   {
     icon: KeyRound,
     label: '修改密码',
@@ -109,6 +116,8 @@ const followerCount = ref(0)
 const followingCount = ref(0)
 const postsLast7DaysCount = ref(0)
 const moodLast7Days = ref<Array<{ mood: string; count: number }>>([])
+/** 本人注册时间，供「我的发布」PostCard 时光勋章兜底（帖体未带 authorRegisteredAt 时） */
+const myRegisteredAtIso = ref<string | null>(null)
 
 async function loadProfileCounts() {
   const id = userStore.userInfo?.id
@@ -117,6 +126,7 @@ async function loadProfileCounts() {
     followingCount.value = 0
     postsLast7DaysCount.value = 0
     moodLast7Days.value = []
+    myRegisteredAtIso.value = null
     return
   }
   try {
@@ -125,6 +135,8 @@ async function loadProfileCounts() {
       followingCount?: number
       postsLast7DaysCount?: number
       moodLast7Days?: Array<{ mood: string; count: number }>
+      registeredAt?: string
+      registered_at?: string
     }>(`/user/profile/${id}`)
     followerCount.value = res.data?.followerCount ?? 0
     followingCount.value = res.data?.followingCount ?? 0
@@ -132,15 +144,38 @@ async function loadProfileCounts() {
     moodLast7Days.value = Array.isArray(res.data?.moodLast7Days)
       ? res.data!.moodLast7Days!
       : []
+    const raw =
+      (typeof res.data?.registeredAt === 'string' && res.data.registeredAt.trim()
+        ? res.data.registeredAt.trim()
+        : '') ||
+      (typeof res.data?.registered_at === 'string' && res.data.registered_at.trim()
+        ? res.data.registered_at.trim()
+        : '')
+    myRegisteredAtIso.value =
+      raw && !Number.isNaN(Date.parse(raw)) ? raw : null
   } catch {
     followerCount.value = 0
     followingCount.value = 0
     postsLast7DaysCount.value = 0
     moodLast7Days.value = []
+    myRegisteredAtIso.value = null
   }
 }
 
 const onSettingsRow = (item: (typeof settings)[number]) => {
+  if (item.action === 'myHome') {
+    if (!userStore.isLoggedIn) {
+      router.push({ path: '/login', query: { redirect: '/profile' } })
+      return
+    }
+    const id = userStore.userInfo?.id
+    if (!id) {
+      showToast('请先登录')
+      return
+    }
+    router.push(`/user/${encodeURIComponent(id)}`)
+    return
+  }
   if (item.action === 'changePassword') {
     if (!userStore.isLoggedIn) {
       router.push({
@@ -376,6 +411,7 @@ const handleLogout = async () => {
               v-for="post in myPosts"
               :key="post.id"
               :post="post"
+              :fallback-author-registered-at="myRegisteredAtIso ?? undefined"
               :hug-disabled="huggingPostId === post.id"
               :favorite-disabled="favoritingPostId === post.id"
               @favorite="store.toggleFavorite"
