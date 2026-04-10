@@ -19,6 +19,19 @@ export const MOOD_BADGE_CLASS: Record<PostMood, string> = {
   疲惫: 'bg-[#EEEAE6] text-[#6B5E58]',
 }
 
+/** html2canvas 克隆文档里 Tailwind 可能不全，心情标签用内联色保证可见 */
+export const MOOD_BADGE_POSTER_STYLE: Record<
+  PostMood,
+  { backgroundColor: string; color: string }
+> = {
+  浮躁: { backgroundColor: '#ffe8dc', color: '#a85a3c' },
+  小确幸: { backgroundColor: '#fff4e0', color: '#9a7b2c' },
+  emo: { backgroundColor: '#ede9ff', color: '#5c5299' },
+  平静: { backgroundColor: '#e8f3ee', color: '#3d7565' },
+  期待: { backgroundColor: '#fff0f5', color: '#a85a7a' },
+  疲惫: { backgroundColor: '#eeeae6', color: '#6b5e58' },
+}
+
 /**
  * 卡片主底色（低饱和、可 transition-colors 平滑过渡）
  * 参考：平静偏灰绿感、开心偏奶油黄、忧郁偏雾蓝

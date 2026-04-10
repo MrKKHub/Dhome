@@ -11,14 +11,18 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    CapsuleRevealCeremony: typeof import('./components/CapsuleRevealCeremony.vue')['default']
     ForestAnonymousAvatar: typeof import('./components/ForestAnonymousAvatar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     PickupMoodModal: typeof import('./components/PickupMoodModal.vue')['default']
     PostCard: typeof import('./components/PostCard.vue')['default']
     PostListSkeleton: typeof import('./components/PostListSkeleton.vue')['default']
+    PostShareMenu: typeof import('./components/PostShareMenu.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SharePosterCard: typeof import('./components/SharePosterCard.vue')['default']
     VanActionSheet: typeof import('vant/es')['ActionSheet']
+    VanCalendar: typeof import('vant/es')['Calendar']
     VanField: typeof import('vant/es')['Field']
     VanList: typeof import('vant/es')['List']
     VanLoading: typeof import('vant/es')['Loading']

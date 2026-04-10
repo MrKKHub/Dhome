@@ -22,7 +22,8 @@ const scrollTopCache = ref<Record<string, number>>({
   推荐: 0,
   关注: 0,
 })
-const lastTab = ref('推荐')
+/** 首页列表区独立滚动（与 TabBar 留白对齐 style.css 中的 210px） */
+const feedScrollEl = ref<HTMLElement | null>(null)
 
 const postStore = usePostStore()
 const userStore = useUserStore()
@@ -124,7 +125,10 @@ const setFilter = (filter: string) => {
   activeFilter.value = filter
 }
 const onTabChange = (tab: string) => {
-  scrollTopCache.value[activeTab.value] = window.scrollY || 0
+  const el = feedScrollEl.value
+  if (el) {
+    scrollTopCache.value[activeTab.value] = el.scrollTop
+  }
   activeTab.value = tab
   postStore.setFeedChannel(tab === '推荐' ? 'recommended' : 'follow')
   postStore.fetchNextPage()
@@ -142,18 +146,23 @@ const onRefresh = async () => {
   refreshing.value = false
 }
 
-const handlePageScroll = () => {
-  scrollTopCache.value[lastTab.value] = window.scrollY || 0
+const handleFeedScroll = () => {
+  const el = feedScrollEl.value
+  if (!el) {
+    return
+  }
+  scrollTopCache.value[activeTab.value] = el.scrollTop
 }
 
 watch(
   () => activeTab.value,
   async (nextTab) => {
-    lastTab.value = nextTab
     await nextTick()
     requestAnimationFrame(() => {
-      const top = scrollTopCache.value[nextTab] || 0
-      window.scrollTo({ top, behavior: 'auto' })
+      const el = feedScrollEl.value
+      if (el) {
+        el.scrollTop = scrollTopCache.value[nextTab] || 0
+      }
     })
   },
 )
@@ -163,11 +172,15 @@ onMounted(() => {
   if (postStore.page === 0) {
     postStore.fetchNextPage()
   }
-  window.addEventListener('scroll', handlePageScroll, { passive: true })
+  void nextTick().then(() => {
+    feedScrollEl.value?.addEventListener('scroll', handleFeedScroll, {
+      passive: true,
+    })
+  })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handlePageScroll)
+  feedScrollEl.value?.removeEventListener('scroll', handleFeedScroll)
 })
 </script>
 
@@ -247,59 +260,61 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <van-pull-refresh
-      v-model="refreshing"
-      pulling-text="下拉即可刷新"
-      loosing-text="释放后刷新"
-      loading-text="刷新中..."
-      @refresh="onRefresh"
-    >
-      <van-list
-        :loading="listLoading"
-        :finished="listFinished"
-        :immediate-check="false"
-        @update:loading="setListLoading"
-        @load="onLoad"
+    <div ref="feedScrollEl" class="home-feed-scroll-area px-1">
+      <van-pull-refresh
+        v-model="refreshing"
+        pulling-text="下拉即可刷新"
+        loosing-text="释放后刷新"
+        loading-text="刷新中..."
+        @refresh="onRefresh"
       >
-        <template #loading>
-          <div class="flex items-center justify-center gap-2 py-3 text-[12px] text-warmInk/45">
-            <van-loading size="14px" color="#FF8C69" />
-            正在收集更多心情卡片…
-          </div>
-        </template>
-
-        <template #finished>
-          <div class="py-3 text-center text-[12px] text-warmInk/30">—— 就到这里，也很好 ——</div>
-        </template>
-
-        <div class="overscroll-y-contain px-1">
-          <PostListSkeleton v-if="showSkeleton" :count="3" />
-
-          <template v-else-if="currentPosts.length">
-            <div class="flex w-full flex-col">
-              <PostCard
-                v-for="post in currentPosts"
-                :key="post.id"
-                class="animate-fade-in"
-                :post="post"
-                :hug-disabled="huggingPostId === post.id"
-                :favorite-disabled="favoritingPostId === post.id"
-                @favorite="postStore.toggleFavorite"
-                @open="openPost"
-                @comment="openPost"
-              />
+        <van-list
+          :loading="listLoading"
+          :finished="listFinished"
+          :immediate-check="false"
+          @update:loading="setListLoading"
+          @load="onLoad"
+        >
+          <template #loading>
+            <div class="flex items-center justify-center gap-2 py-3 text-[12px] text-warmInk/45">
+              <van-loading size="14px" color="#FF8C69" />
+              正在收集更多心情卡片…
             </div>
           </template>
 
-          <div
-            v-else-if="!listLoading && !showSkeleton"
-            class="rounded-[28px] bg-apricot/60 py-10 text-center text-[15px] text-warmInk/50"
-          >
-            这里还空空的，去写第一条树洞吧。
+          <template #finished>
+            <div class="py-3 text-center text-[12px] text-warmInk/30">—— 就到这里，也很好 ——</div>
+          </template>
+
+          <div class="overscroll-y-contain">
+            <PostListSkeleton v-if="showSkeleton" :count="3" />
+
+            <template v-else-if="currentPosts.length">
+              <div class="flex w-full flex-col">
+                <PostCard
+                  v-for="post in currentPosts"
+                  :key="post.id"
+                  class="animate-fade-in"
+                  :post="post"
+                  :hug-disabled="huggingPostId === post.id"
+                  :favorite-disabled="favoritingPostId === post.id"
+                  @favorite="postStore.toggleFavorite"
+                  @open="openPost"
+                  @comment="openPost"
+                />
+              </div>
+            </template>
+
+            <div
+              v-else-if="!listLoading && !showSkeleton"
+              class="rounded-[28px] bg-apricot/60 py-10 text-center text-[15px] text-warmInk/50"
+            >
+              这里还空空的，去写第一条树洞吧。
+            </div>
           </div>
-        </div>
-      </van-list>
-    </van-pull-refresh>
+        </van-list>
+      </van-pull-refresh>
+    </div>
 
     <PickupMoodModal
       :open="pickupOpen"

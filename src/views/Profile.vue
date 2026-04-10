@@ -4,12 +4,10 @@ import {
   Bell,
   ChevronRight,
   FileText,
-  Heart,
+  KeyRound,
   LogOut,
   PencilLine,
-  ShieldCheck,
   UserRound,
-  WalletCards,
 } from 'lucide-vue-next'
 import { showConfirmDialog, showToast } from 'vant'
 import { storeToRefs } from 'pinia'
@@ -83,20 +81,26 @@ const accountLine = computed(() => {
 })
 
 const settings: Array<{
-  icon: typeof UserRound
+  icon: typeof UserRound | typeof KeyRound | typeof Bell
   label: string
   desc: string
-  action?: 'notifications'
+  action?: 'notifications' | 'changePassword'
 }> = [
-  { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
+  // { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
+  {
+    icon: KeyRound,
+    label: '修改密码',
+    desc: '验证码验证后设置新密码',
+    action: 'changePassword',
+  },
   {
     icon: Bell,
     label: '消息通知',
     desc: '评论、点赞、关注提醒',
     action: 'notifications',
   },
-  { icon: WalletCards, label: '隐私设置', desc: '动态可见范围、黑名单' },
-  { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
+  // { icon: WalletCards, label: '隐私设置', desc: '动态可见范围、黑名单' },
+  // { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
 ]
 
 const centerTabs: CenterTab[] = ['我的发布', '我的收藏']
@@ -137,6 +141,25 @@ async function loadProfileCounts() {
 }
 
 const onSettingsRow = (item: (typeof settings)[number]) => {
+  if (item.action === 'changePassword') {
+    if (!userStore.isLoggedIn) {
+      router.push({
+        path: '/login',
+        query: { redirect: '/reset-password?mode=change' },
+      })
+      return
+    }
+    const em = userStore.userInfo?.email?.trim()
+    if (em) {
+      router.push({
+        path: '/reset-password',
+        query: { email: em, mode: 'change' },
+      })
+    } else {
+      router.push({ path: '/reset-password', query: { mode: 'change' } })
+    }
+    return
+  }
   if (item.action === 'notifications') {
     if (!userStore.isLoggedIn) {
       router.push('/login?redirect=/notifications')

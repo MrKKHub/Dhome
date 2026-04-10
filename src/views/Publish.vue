@@ -45,14 +45,31 @@ const forestPreviewLoading = ref(false)
 const isCapsule = ref(false)
 const unlockAtIso = ref<string | null>(null)
 const capsuleSheetOpen = ref(false)
+/** 自定义开启日 YYYY-MM-DD，与后端 openTime 对齐；快捷预设仅填 unlockAt */
+const capsuleOpenTimeYmd = ref<string | null>(null)
+const capsuleCalendarOpen = ref(false)
 /** 胶囊是否进入时光长河供他人打捞（默认参与） */
 const capsuleIsPublic = ref(true)
+
+/** Vant Calendar：可选范围 */
+const calendarMinDate = (() => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+})()
+const calendarMaxDate = (() => {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + 15)
+  return d
+})()
 
 watch(isCapsule, (on) => {
   if (!on) {
     unlockAtIso.value = null
     capsuleSheetOpen.value = false
     capsuleIsPublic.value = true
+    capsuleOpenTimeYmd.value = null
+    capsuleCalendarOpen.value = false
   }
 })
 
@@ -156,6 +173,8 @@ const resetForm = () => {
   isCapsule.value = false
   unlockAtIso.value = null
   capsuleSheetOpen.value = false
+  capsuleOpenTimeYmd.value = null
+  capsuleCalendarOpen.value = false
   capsuleIsPublic.value = true
   imageSlots.value.forEach((slot) => URL.revokeObjectURL(slot.preview))
   imageSlots.value = []
@@ -169,15 +188,42 @@ function endOfLocalDay(d: Date): Date {
 }
 
 function setUnlockAfterMonths(n: number) {
+  capsuleOpenTimeYmd.value = null
   const d = new Date()
   d.setMonth(d.getMonth() + n)
   unlockAtIso.value = endOfLocalDay(d).toISOString()
 }
 
 function setUnlockNextYearSameDate() {
+  capsuleOpenTimeYmd.value = null
   const d = new Date()
   d.setFullYear(d.getFullYear() + 1)
   unlockAtIso.value = endOfLocalDay(d).toISOString()
+}
+
+/** 本地选中日 → 当日 UTC 0 点 ISO + YYYY-MM-DD 供 openTime */
+function localYmdFromDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function localDateToUtcMidnightIso(d: Date): string {
+  return new Date(
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0),
+  ).toISOString()
+}
+
+function onCapsuleCalendarConfirm(val: Date | Date[]) {
+  const d = Array.isArray(val) ? val[0] : val
+  if (!d) {
+    return
+  }
+  capsuleOpenTimeYmd.value = localYmdFromDate(d)
+  unlockAtIso.value = localDateToUtcMidnightIso(d)
+  capsuleCalendarOpen.value = false
+  capsuleSheetOpen.value = false
 }
 
 const unlockAtLabel = () => {
@@ -267,7 +313,11 @@ const submitPost = async () => {
       followsOnly: followsOnly.value,
       isAnonymous: publishAnonymous.value,
       isCapsule: isCapsule.value,
-      unlockAt: isCapsule.value ? unlockAtIso.value : null,
+      openTime: isCapsule.value ? capsuleOpenTimeYmd.value : null,
+      unlockAt:
+        isCapsule.value && !capsuleOpenTimeYmd.value
+          ? unlockAtIso.value
+          : null,
       isPublic: isCapsule.value ? capsuleIsPublic.value : undefined,
     })
 
@@ -324,11 +374,11 @@ const submitPost = async () => {
             v-for="m in MOOD_OPTIONS"
             :key="m"
             type="button"
-            class="rounded-full px-3 py-2 text-[12px] font-medium transition-all duration-200 active:scale-[0.97]"
+            class="rounded-full px-3 py-2 text-[12px] font-medium transition-all duration-300 ease-out active:scale-[0.97]"
             :class="[
               MOOD_BADGE_CLASS[m],
               selectedMood === m
-                ? 'ring-2 ring-brand/40 ring-offset-2 ring-offset-apricot'
+                ? 'scale-105 z-[1] shadow-[0_0_16px_rgba(255,140,105,0.42)] ring-2 ring-brand/45 ring-offset-2 ring-offset-[#fdfbf7]'
                 : 'opacity-80 hover:opacity-100',
             ]"
             @click="pickMood(m)"
@@ -353,7 +403,7 @@ const submitPost = async () => {
           class="space-y-2 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-3 py-3 text-[13px] text-amber-950/85"
         >
           <p class="leading-relaxed">
-            开启后，在解锁时间到达前，他人只能看到「未拆的信」，正文与图片不会泄露。
+            封存期间，连你自己也看不到正文与配图；到达约定日期后，须在详情页手动拆封才可见。
           </p>
           <p class="text-[12px] text-amber-900/55">
             预计开启：{{ unlockAtLabel() }}
@@ -419,8 +469,23 @@ const submitPost = async () => {
           >
             明年今日
           </button>
+          <button
+            type="button"
+            class="w-full rounded-2xl border border-amber-300/70 bg-white py-3 text-[14px] font-semibold text-amber-950/90 active:scale-[0.99]"
+            @click="capsuleCalendarOpen = true"
+          >
+            自定义日期
+          </button>
         </div>
       </van-action-sheet>
+
+      <van-calendar
+        v-model:show="capsuleCalendarOpen"
+        :min-date="calendarMinDate"
+        :max-date="calendarMaxDate"
+        teleport="body"
+        @confirm="onCapsuleCalendarConfirm"
+      />
 
       <label class="flex cursor-pointer items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3">
         <span class="text-[14px] font-medium text-warmInk/80">森林隐身发布</span>

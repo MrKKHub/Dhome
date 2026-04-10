@@ -372,6 +372,19 @@ onUnmounted(() => {
           <span class="warm-ring" />
         </span>
       </button>
+
+      <p
+        v-if="activeTab === 'login'"
+        class="mt-4 text-center text-[12px] text-warmInk/42"
+      >
+        <button
+          type="button"
+          class="text-[#E07A5F]/90 underline decoration-[#E07A5F]/35 underline-offset-2 transition-colors active:opacity-80"
+          @click="router.push('/reset-password')"
+        >
+          忘记密码？
+        </button>
+      </p>
     </div>
   </section>
 </template>

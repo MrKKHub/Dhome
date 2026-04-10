@@ -6,6 +6,7 @@ import axios from 'axios'
 import request from '@/api/request'
 import { playLeafConfetti } from '@/utils/leafConfetti'
 import PostCard from '@/components/PostCard.vue'
+import CapsuleRevealCeremony from '@/components/CapsuleRevealCeremony.vue'
 import { useAppToast } from '@/composables/useAppToast'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
@@ -22,6 +23,10 @@ const followLoading = ref(false)
 const isFollowedByMe = ref(false)
 const leafFollowBtnRef = ref<HTMLButtonElement | null>(null)
 
+/** 全屏磨砂擦除仪式进行中（PATCH 拆封成功后触发） */
+const ceremonyActive = ref(false)
+const openingCapsule = ref(false)
+
 const postId = computed(() => {
   const raw = route.params.id
   return Array.isArray(raw) ? raw[0] ?? '' : String(raw ?? '')
@@ -30,6 +35,83 @@ const postId = computed(() => {
 const post = computed(() =>
   postId.value ? store.getPostById(postId.value) : null,
 )
+
+const unlockAtMs = computed(() => {
+  const iso = post.value?.unlockAtIso
+  if (!iso) {
+    return null
+  }
+  const t = Date.parse(iso)
+  return Number.isNaN(t) ? null : t
+})
+
+/** 作者：胶囊仍锁定且未到 unlockAt */
+const authorCapsuleBeforeUnlock = computed(() => {
+  const p = post.value
+  if (
+    !p?.isCapsule ||
+    !p.isMine ||
+    !(p.isLocked === true || p.capsuleLocked === true)
+  ) {
+    return false
+  }
+  const ms = unlockAtMs.value
+  return ms != null && ms > Date.now()
+})
+
+/** 作者：已到开启日但仍未手动拆封 */
+const authorCapsuleCanManualOpen = computed(() => {
+  const p = post.value
+  if (
+    !p?.isCapsule ||
+    !p.isMine ||
+    !(p.isLocked === true || p.capsuleLocked === true)
+  ) {
+    return false
+  }
+  const ms = unlockAtMs.value
+  return ms != null && ms <= Date.now()
+})
+
+const capsuleCountdownLabel = computed(() => {
+  const ms = unlockAtMs.value
+  if (ms == null || ms <= Date.now()) {
+    return ''
+  }
+  const days = Math.max(0, Math.ceil((ms - Date.now()) / 86400000))
+  return `距离开启还有 ${days} 天`
+})
+
+function openCapsuleCeremony() {
+  ceremonyActive.value = true
+}
+
+async function onManualOpenCapsule() {
+  const id = postId.value
+  if (!id || !post.value?.isMine || openingCapsule.value) {
+    return
+  }
+  openingCapsule.value = true
+  try {
+    const r = await store.openCapsuleByAuthor(id)
+    if (!r.ok) {
+      toast.fail(r.message)
+      return
+    }
+    toast.success('拆封成功')
+    openCapsuleCeremony()
+  } finally {
+    openingCapsule.value = false
+  }
+}
+
+function onCapsuleCeremonyComplete() {
+  ceremonyActive.value = false
+  const id = postId.value
+  if (id) {
+    void store.fetchComments(id)
+  }
+}
 
 const showFollow = computed(
   () =>
@@ -111,7 +193,11 @@ const comments = computed(() =>
 watch(
   () => postId.value,
   async (id) => {
+    ceremonyActive.value = false
     if (id) {
+      if (!store.getPostById(id)) {
+        await store.fetchPostDetail(id)
+      }
       await store.fetchComments(id)
     }
   },
@@ -153,15 +239,62 @@ const submitComment = async () => {
 
 <template>
   <section class="animate-fade-in">
-    <PostCard
+    <div
       v-if="post"
-      :post="post"
-      :hug-disabled="huggingPostId === post.id"
-      :favorite-disabled="favoritingPostId === post.id"
-      @favorite="store.toggleFavorite"
-      @open="() => null"
-      @comment="() => null"
+      class="relative mb-6 overflow-hidden rounded-[28px]"
+    >
+      <PostCard
+        class="!mb-0"
+        :post="post"
+        :hug-disabled="huggingPostId === post.id"
+        :favorite-disabled="favoritingPostId === post.id"
+        @favorite="store.toggleFavorite"
+        @open="() => null"
+        @comment="() => null"
+      />
+    </div>
+
+    <CapsuleRevealCeremony
+      v-if="ceremonyActive"
+      @complete="onCapsuleCeremonyComplete"
     />
+
+    <!-- 作者：封存中（未到 unlockAt），手动拆封按钮禁用 -->
+    <div
+      v-if="post && authorCapsuleBeforeUnlock"
+      class="mt-3 space-y-4 rounded-[28px] border border-amber-200/60 bg-amber-50/85 px-4 py-6 text-center"
+    >
+      <p class="text-[15px] font-semibold text-amber-950/85">封存中</p>
+      <p class="text-[13px] leading-relaxed text-amber-950/70">
+        {{ capsuleCountdownLabel }}
+      </p>
+      <button
+        type="button"
+        disabled
+        class="mx-auto flex h-11 min-w-[200px] items-center justify-center rounded-full border border-amber-200/80 bg-white/50 px-8 text-[14px] font-semibold text-amber-950/35"
+      >
+        手动拆封
+      </button>
+    </div>
+
+    <!-- 作者：已到期待手动拆封 → PATCH 成功后进入磨砂擦除仪式 -->
+    <div
+      v-else-if="post && authorCapsuleCanManualOpen"
+      class="mt-3 space-y-4 rounded-[28px] border border-amber-200/60 bg-amber-50/85 px-4 py-6 text-center"
+    >
+      <p class="text-[15px] font-semibold text-amber-950/85">胶囊已送达</p>
+      <p class="text-[13px] leading-relaxed text-amber-950/70">
+        约定的时间已到。点击下方按钮，在磨砂玻璃上轻轻擦拭，亲手拆开这封信。
+      </p>
+      <button
+        type="button"
+        class="mx-auto flex h-11 min-w-[200px] items-center justify-center rounded-full bg-gradient-to-r from-amber-200 to-amber-100 px-8 text-[14px] font-semibold text-amber-950 shadow-warm transition-transform active:scale-[0.97] disabled:opacity-55"
+        :disabled="openingCapsule"
+        @click="onManualOpenCapsule"
+      >
+        {{ openingCapsule ? '拆封中…' : '手动拆封' }}
+      </button>
+    </div>
 
     <div
       v-if="post && showFollow"
@@ -181,7 +314,7 @@ const submitComment = async () => {
     </div>
 
     <div
-      v-else
+      v-else-if="!post"
       class="rounded-[28px] bg-apricot/70 py-12 text-center text-[15px] text-warmInk/50"
     >
       这片叶子飘走了，换个入口看看吧。
@@ -195,7 +328,7 @@ const submitComment = async () => {
     </div>
 
     <div
-      v-if="post && (!post.capsuleLocked || post.isMine)"
+      v-if="post && !post.capsuleLocked"
       class="mt-3 space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warmLg backdrop-blur-sm"
     >
       <div class="flex items-center gap-2">

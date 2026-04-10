@@ -203,7 +203,7 @@ watch(tab, (t) => {
           长河打捞
         </p>
         <p class="mb-5 max-w-[280px] text-center text-[12px] leading-relaxed text-sky-900/50">
-          只遇见已解锁、且作者选择公开的胶囊；打捞结果以匿名温暖展示。
+          只遇见作者已手动拆封、且选择公开的胶囊；打捞结果以匿名温暖展示。
         </p>
         <button
           ref="salvageBtnRef"

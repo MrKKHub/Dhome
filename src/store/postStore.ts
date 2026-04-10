@@ -6,7 +6,10 @@ import request from '@/api/request'
 import type { PostMood } from '@/constants/moods'
 import { MOOD_OPTIONS } from '@/constants/moods'
 import { useUserStore } from '@/store/userStore'
-import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
+import {
+  resolveAvatarUrl,
+  resolvePublicUploadUrl,
+} from '@/utils/resolveAvatarUrl'
 
 export type { PostMood } from '@/constants/moods'
 
@@ -57,10 +60,16 @@ export interface PostItem {
   unlockAtIso?: string | null
   /** 接口标明当前用户视角下是否仍锁定 */
   capsuleLocked?: boolean
+  /** 与 capsuleLocked 语义一致，便于模板以 isLocked 阅读 */
+  isLocked?: boolean
+  /** 时间胶囊：作者已手动拆封 */
+  isOpened?: boolean
   /** 是否进入时光长河（打捞池） */
   isPublic?: boolean
   /** 来自长河打捞的匿名展示条 */
   isRiverCatch?: boolean
+  posterSourceContent?: string
+  posterSourceImages?: string[]
 }
 
 /** 时光长河随机打捞结果（HTTP 层在 store 内消化，由页面弹 Vant Toast） */
@@ -87,8 +96,10 @@ export interface PublishPayload {
   isAnonymous?: boolean
   /** 时间胶囊 */
   isCapsule?: boolean
-  /** ISO8601，仅胶囊帖需要 */
+  /** ISO8601，仅胶囊帖需要（与 openTime 二选一，快捷预设用） */
   unlockAt?: string | null
+  /** YYYY-MM-DD，自定义开启日（优先于 unlockAt） */
+  openTime?: string | null
   /** 是否允许进入时光长河；默认 true */
   isPublic?: boolean
 }
@@ -133,8 +144,13 @@ interface PostApiRow {
   isCapsule?: boolean
   unlockAt?: string | null
   capsuleLocked?: boolean
+  /** 后端显式返回；缺省时与 capsuleLocked 一致 */
+  isLocked?: boolean
   isPublic?: boolean
   isRiverCatch?: boolean
+  isOpened?: boolean
+  posterSourceContent?: string
+  posterSourceImages?: unknown
   author?: {
     id?: string | number
     nickname?: string
@@ -194,7 +210,7 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
       avatar: '',
       title: raw.title ?? '',
       content: raw.content ?? '',
-      images: normalizeImages(raw.images),
+      images: normalizeImages(raw.images).map(resolvePublicUploadUrl),
       mood: normalizeMood(raw.mood ?? raw.moodTag),
       liked: raw.liked ?? false,
       favorited: raw.favorited ?? false,
@@ -209,8 +225,19 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
           ? raw.unlockAt
           : null,
       capsuleLocked: raw.capsuleLocked === true,
+      isLocked:
+        raw.isLocked === true ||
+        raw.capsuleLocked === true,
       isPublic: raw.isPublic !== false,
       isRiverCatch: raw.isRiverCatch === true,
+      isOpened: raw.isCapsule === true ? raw.isOpened === true : undefined,
+      posterSourceContent:
+        typeof raw.posterSourceContent === 'string'
+          ? raw.posterSourceContent
+          : undefined,
+      posterSourceImages: normalizeImages(raw.posterSourceImages).map(
+        resolvePublicUploadUrl,
+      ),
       ...overrides,
       isMine: raw.isMine ?? overrides?.isMine ?? false,
     }
@@ -246,7 +273,7 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     nickname: nick,
     title: raw.title ?? '',
     content: raw.content ?? '',
-    images: normalizeImages(raw.images),
+    images: normalizeImages(raw.images).map(resolvePublicUploadUrl),
     mood: normalizeMood(raw.mood ?? raw.moodTag),
     liked: raw.liked ?? false,
     favorited: raw.favorited ?? false,
@@ -260,8 +287,17 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
     unlockAtIso:
       typeof raw.unlockAt === 'string' && raw.unlockAt ? raw.unlockAt : null,
     capsuleLocked: raw.capsuleLocked === true,
+    isLocked: raw.isLocked === true || raw.capsuleLocked === true,
     isPublic: raw.isPublic !== false,
     isRiverCatch: raw.isRiverCatch === true,
+    isOpened: raw.isCapsule === true ? raw.isOpened === true : undefined,
+    posterSourceContent:
+      typeof raw.posterSourceContent === 'string'
+        ? raw.posterSourceContent
+        : undefined,
+    posterSourceImages: normalizeImages(raw.posterSourceImages).map(
+      resolvePublicUploadUrl,
+    ),
     ...overrides,
     isMine: raw.isMine ?? overrides?.isMine ?? false,
   }
@@ -359,7 +395,11 @@ export const usePostStore = defineStore('post', () => {
       mood: data.mood,
       isAnonymous: data.isAnonymous ?? false,
       isCapsule: data.isCapsule === true,
-      unlockAt: data.unlockAt ?? undefined,
+      openTime: data.openTime?.trim() || undefined,
+      unlockAt:
+        data.isCapsule === true && data.openTime?.trim()
+          ? undefined
+          : data.unlockAt ?? undefined,
       isPublic: data.isCapsule ? data.isPublic !== false : undefined,
     }
     const res = await request.post<PostApiRow>('/posts', body)
@@ -637,6 +677,63 @@ export const usePostStore = defineStore('post', () => {
 
   /** 随机拾起一条他人心情（需登录，GET /posts/random） */
   /** 合并单条帖子到 feed，便于详情/长河打捞后仍能 getPostById */
+  /**
+   * GET /posts/:id：详情页补拉（胶囊馆等场景帖子可能不在 feed 内）
+   */
+  const fetchPostDetail = async (postId: string): Promise<PostItem | null> => {
+    const id = postId.trim()
+    if (!id) {
+      return null
+    }
+    try {
+      const res = await request.get<PostApiRow>(
+        `/posts/${encodeURIComponent(id)}`,
+      )
+      const row = res.data
+      if (!row || row.id == null || String(row.id).trim() === '') {
+        return null
+      }
+      return ingestPostFromApiRow(row)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * PATCH /posts/:id/open：作者手动拆封时间胶囊
+   */
+  const openCapsuleByAuthor = async (
+    postId: string,
+  ): Promise<{ ok: true; item: PostItem } | { ok: false; message: string }> => {
+    const u = useUserStore()
+    if (!u.isLoggedIn) {
+      return { ok: false, message: '请先登录' }
+    }
+    const id = postId.trim()
+    if (!id) {
+      return { ok: false, message: '帖子无效' }
+    }
+    try {
+      const res = await request.patch<PostApiRow>(
+        `/posts/${encodeURIComponent(id)}/open`,
+      )
+      const row = res.data
+      if (!row || row.id == null || String(row.id).trim() === '') {
+        return { ok: false, message: '拆封失败' }
+      }
+      const item = ingestPostFromApiRow(row)
+      return { ok: true, item }
+    } catch (e) {
+      const msg = axios.isAxiosError(e)
+        ? parseNestMessage(e.response?.data)
+        : undefined
+      return {
+        ok: false,
+        message: msg || '拆封失败，请稍后再试',
+      }
+    }
+  }
+
   const ingestPostFromApiRow = (raw: PostApiRow): PostItem => {
     const uid = useUserStore().userInfo?.id ?? null
     const aid = raw.authorId ?? raw.author?.id
@@ -835,6 +932,8 @@ export const usePostStore = defineStore('post', () => {
     fetchMyCapsulesList,
     salvageRiverCapsule,
     ingestPostFromApiRow,
+    fetchPostDetail,
+    openCapsuleByAuthor,
     patchMineAvatarDisplay,
     toggleFollowOnPost,
   }

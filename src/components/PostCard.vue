@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-
-/** UI 开关：恢复卡片标题展示时改为 false（post.title 仍参与数据映射） */
-const UI_HIDE_CARD_TITLE = true
-/** UI 开关：关闭后缩略图不再打开全屏预览 */
-const UI_IMAGE_PREVIEW_ENABLED = true
+import { computed, nextTick, onUnmounted, ref, useAttrs } from 'vue'
+import html2canvas from 'html2canvas'
+import QRCode from 'qrcode'
 import {
   HeartHandshake,
   Leaf,
+  Mail,
   MessageCircle,
   Share2,
   Sparkles,
   Star,
+  Timer,
 } from 'lucide-vue-next'
-import { showDialog, showToast } from 'vant'
+import {
+  closeToast,
+  showDialog,
+  showFailToast,
+  showLoadingToast,
+  showToast,
+} from 'vant'
 import { CAPSULE_LOCKED_TOAST } from '@/constants/capsule'
 import ForestAnonymousAvatar from '@/components/ForestAnonymousAvatar.vue'
 import {
@@ -25,7 +30,23 @@ import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 import { playLeafConfetti } from '@/utils/leafConfetti'
 import { playHugHeartConfetti } from '@/utils/hugHeartConfetti'
+import PostShareMenu from '@/components/PostShareMenu.vue'
+import SharePosterCard from '@/components/SharePosterCard.vue'
+import {
+  stripRemoteImagesInHtml2CanvasClone,
+  waitPosterImagesLoaded,
+} from '@/utils/posterHtml2Canvas'
+import { getPostShareUrl, isWeChatBrowser } from '@/utils/shareEnv'
 import type { PostItem } from '@/store/postStore'
+
+defineOptions({ inheritAttrs: false })
+
+/** UI 开关：恢复卡片标题展示时改为 false（post.title 仍参与数据映射） */
+const UI_HIDE_CARD_TITLE = true
+/** UI 开关：关闭后缩略图不再打开全屏预览 */
+const UI_IMAGE_PREVIEW_ENABLED = true
+
+const attrs = useAttrs()
 
 const postStore = usePostStore()
 const userStore = useUserStore()
@@ -37,6 +58,40 @@ const hugAnonymous = ref(false)
 const hugMessage = ref('')
 /** 全屏大图预览：点击缩略图打开，点遮罩或图关闭 */
 const imagePreviewUrl = ref<string | null>(null)
+
+/** 分享面板与心情海报（html2canvas） */
+const shareSheetOpen = ref(false)
+const posterHostVisible = ref(false)
+const posterQrDataUrl = ref('')
+const posterCardRef = ref<InstanceType<typeof SharePosterCard> | null>(null)
+const posterGenerating = ref(false)
+/** 海报结果：Blob URL + 原生 img 全屏预览（避免 Vant ImagePreview+Swipe 单图 data URL 异常与中央竖线） */
+const posterResultUrl = ref<string | null>(null)
+
+/**
+ * 海报流程里 Loading 的 forbidClick、其它 Popup 的 lockScroll 偶发未完全清理时，
+ * body 会残留 van-toast--unclickable（overflow:hidden + 子元素 pointer-events）或
+ * van-overflow-hidden，导致关闭预览后页面无法滚动。
+ */
+function releasePosterFlowBodyScrollLocks() {
+  if (typeof document === 'undefined') {
+    return
+  }
+  document.body.classList.remove('van-toast--unclickable', 'van-overflow-hidden')
+}
+
+function closePosterResultPreview() {
+  const u = posterResultUrl.value
+  if (u?.startsWith('blob:')) {
+    URL.revokeObjectURL(u)
+  }
+  posterResultUrl.value = null
+  releasePosterFlowBodyScrollLocks()
+}
+
+onUnmounted(() => {
+  closePosterResultPreview()
+})
 
 const openImagePreview = (url: string) => {
   if (!UI_IMAGE_PREVIEW_ENABLED || !url?.trim()) {
@@ -107,20 +162,33 @@ const capsuleDaysLeft = computed(() => {
   return Math.max(0, Math.ceil((t - Date.now()) / 86400000))
 })
 
-/** 信封壳：他人视角接口脱敏，或胶囊馆中作者看自己未到期 */
-const showCapsuleShell = computed(() => {
-  if (props.post.capsuleLocked) {
+/**
+ * 封存态 UI：优先 isLocked（与 capsuleLocked 同步）；胶囊馆作者视角未到期同视为封存展示。
+ */
+const capsuleSealedDisplay = computed(() => {
+  if (props.post.isCapsule !== true) {
+    return false
+  }
+  if (props.post.isLocked === true || props.post.capsuleLocked === true) {
     return true
   }
   if (
     props.museumMode &&
-    props.post.isCapsule &&
     props.post.unlockAtIso &&
     Date.parse(props.post.unlockAtIso) > Date.now()
   ) {
     return true
   }
   return false
+})
+
+/** 封存且未到 unlockAt：展示倒计时 */
+const capsuleBeforeUnlock = computed(() => {
+  if (!capsuleSealedDisplay.value || !props.post.unlockAtIso) {
+    return false
+  }
+  const t = Date.parse(props.post.unlockAtIso)
+  return !Number.isNaN(t) && t > Date.now()
 })
 
 const showLeafDecor = computed(
@@ -214,6 +282,148 @@ const toggleFavorite = () => {
 }
 const openDetail = () => emit('open', props.post.id)
 
+/** 海报正文：封存态统一占位；已解锁用 content */
+const posterBodyForShare = computed(() => {
+  if (capsuleSealedDisplay.value) {
+    return '致未来的自己：这一刻的心声，正安静地睡在时光里。到期拆开，再与自己重逢～'
+  }
+  const t = props.post.content?.trim()
+  return t || '（分享了一张心情卡片）'
+})
+
+const posterDateLine = computed(
+  () => `记录于 ${props.post.createdAt}`,
+)
+
+const posterBgImage = computed(() => {
+  if (capsuleSealedDisplay.value) {
+    return null
+  }
+  return props.post.images[0] ?? null
+})
+
+function openShareSheet(e: MouseEvent) {
+  e.stopPropagation()
+  shareSheetOpen.value = true
+}
+
+async function copyPostLink() {
+  const url = getPostShareUrl(props.post.id)
+  try {
+    await navigator.clipboard.writeText(url)
+    showToast('链接已复制，去发给好友吧')
+    return
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      showToast('链接已复制，去发给好友吧')
+    } catch {
+      showToast('复制失败，请长按链接手动复制')
+    }
+  }
+}
+
+/** 离屏渲染 SharePosterCard → html2canvas → ImagePreview + 底部提示 */
+async function generateSharePoster() {
+  if (posterGenerating.value || typeof window === 'undefined') {
+    return
+  }
+  posterGenerating.value = true
+  showLoadingToast({
+    message: '正在生成心情海报…',
+    forbidClick: true,
+    duration: 0,
+    /** 全屏遮罩，盖住 z-index 低于 Toast 的海报截图层，避免闪屏；Toast 约 2000+ */
+    overlay: true,
+  })
+  try {
+    const link = getPostShareUrl(props.post.id)
+    posterQrDataUrl.value = await QRCode.toDataURL(link, {
+      width: 152,
+      margin: 1,
+      color: { dark: '#5C4B4B', light: '#FFFFFF' },
+    })
+    posterHostVisible.value = true
+    /**
+     * 强制在 DOM 完全挂载后再截图（nextTick 链 + 字体就绪 + 图 load）
+     * 等价于在 nextTick(async () => { ... }) 内执行截图逻辑，避免空白画布
+     */
+    await nextTick()
+    await nextTick()
+    await new Promise<void>((r) => {
+      nextTick(async () => {
+        await nextTick()
+        try {
+          if (document.fonts?.ready) {
+            await document.fonts.ready.catch(() => undefined)
+          }
+        } catch {
+          /* ignore */
+        }
+        r()
+      })
+    })
+    const root = posterCardRef.value?.getCaptureRoot()
+    if (!root) {
+      throw new Error('poster root missing')
+    }
+    await waitPosterImagesLoaded(root)
+    await new Promise<void>((r) => requestAnimationFrame(() => r()))
+    await new Promise<void>((r) => requestAnimationFrame(() => r()))
+    await new Promise<void>((r) => setTimeout(r, 120))
+    /**
+     * 勿用 left:-9999px：html2canvas 在内部 iframe 内按视口裁剪，易成极细竖条。
+     * 宿主 z-index 低于 Loading 全屏 overlay（约 2000+），靠 overlay 盖住，避免用户看到闪动。
+     */
+    void root.offsetWidth
+    const canvas = await html2canvas(root, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#fdfbf7',
+      logging: false,
+      imageTimeout: 15000,
+      onclone: (clonedDoc, clonedEl) => {
+        stripRemoteImagesInHtml2CanvasClone(clonedDoc, clonedEl)
+      },
+    })
+    if (canvas.width < 2 || canvas.height < 2) {
+      throw new Error('poster canvas size invalid')
+    }
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/png', 0.95)
+    })
+    if (!blob) {
+      throw new Error('poster blob failed')
+    }
+    posterHostVisible.value = false
+    /**
+     * 先关 Loading：去掉 body 上 van-toast--unclickable；再用 Blob URL + 原生 img 预览，
+     * 避免 showImagePreview(dataUrl) 在部分环境下黑屏、Swiper 中央白竖线等问题。
+     */
+    closeToast()
+    await nextTick()
+    await new Promise<void>((r) => requestAnimationFrame(() => r()))
+    /** 清掉旧 Blob 并释放 body 上可能残留的 Vant 锁类 */
+    closePosterResultPreview()
+    posterResultUrl.value = URL.createObjectURL(blob)
+  } catch {
+    posterHostVisible.value = false
+    closeToast()
+    closePosterResultPreview()
+    showFailToast('海报生成失败，请重试')
+  } finally {
+    posterGenerating.value = false
+  }
+}
+
 /** 非匿名且已登录、非本人：展示「种下思念」绿叶关注 */
 const showForestFollow = computed(
   () =>
@@ -238,7 +448,10 @@ const onForestFollowClick = async (e: MouseEvent) => {
 </script>
 
 <template>
+  <!-- 多根节点时 attrs 需手动落到 article；contents 避免破坏父级 flex 排版 -->
+  <div class="contents">
   <article
+    v-bind="attrs"
     class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-[#E8DDD4]/90 shadow-warm transition-[transform,box-shadow] duration-300 ease-out hover:scale-[1.01] hover:shadow-[0_18px_48px_-12px_rgba(196,164,132,0.22)] active:scale-[0.98]"
     @click="openDetail"
   >
@@ -353,31 +566,61 @@ const onForestFollowClick = async (e: MouseEvent) => {
       <!-- 信封壳需要足够高度；未加壳时用 overflow-hidden 裁圆角。加壳时去掉 hidden，避免绝对定位层被裁切 -->
       <div
         class="relative mb-3 min-h-[4.5rem] rounded-2xl"
-        :class="showCapsuleShell ? 'min-h-[11rem]' : 'overflow-hidden'"
+        :class="capsuleSealedDisplay ? 'min-h-[11rem]' : 'overflow-hidden'"
       >
         <div
-          v-if="showCapsuleShell"
-          class="absolute inset-0 z-[2] flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-amber-200/60 bg-white/55 px-4 py-5 text-center shadow-inner backdrop-blur-md"
+          v-if="capsuleSealedDisplay"
+          class="absolute inset-0 z-[2] flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-amber-200/60 bg-gradient-to-b from-amber-50/75 to-white/70 px-4 py-5 text-center shadow-inner backdrop-blur-md"
           role="button"
           tabindex="0"
           @click.stop="onLockedCapsuleTap"
           @keydown.enter.stop="onLockedCapsuleTap"
         >
-          <span class="shrink-0 text-3xl leading-none opacity-90" aria-hidden="true">✉️</span>
-          <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
-            一封未拆的信
-          </p>
-          <p class="text-[13px] leading-normal text-[#8B7355]">
-            🔒 距开启还有 {{ capsuleDaysLeft }} 天
-          </p>
+          <template v-if="capsuleBeforeUnlock">
+            <div
+              class="flex items-center justify-center gap-3 text-amber-900/75"
+              aria-hidden="true"
+            >
+              <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
+              <Timer class="h-8 w-8 shrink-0" :stroke-width="1.75" />
+            </div>
+            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+              封存中
+            </p>
+            <p class="text-[13px] leading-normal text-[#8B7355]">
+              距离开启还有 {{ capsuleDaysLeft }} 天
+            </p>
+          </template>
+          <template v-else-if="post.isMine">
+            <div
+              class="flex items-center justify-center gap-3 text-amber-900/75"
+              aria-hidden="true"
+            >
+              <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
+            </div>
+            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+              胶囊已送达
+            </p>
+            <p class="text-[13px] leading-normal text-[#8B7355]">
+              在详情页点击「手动拆封」，完成拆封仪式
+            </p>
+          </template>
+          <template v-else>
+            <div
+              class="flex items-center justify-center gap-3 text-amber-900/75"
+              aria-hidden="true"
+            >
+              <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
+            </div>
+            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+              一颗未拆的胶囊
+            </p>
+            <p class="text-[13px] leading-normal text-[#8B7355]">
+              作者尚未拆封，内容仍安睡在时光里
+            </p>
+          </template>
         </div>
-        <div
-          :class="[
-            showCapsuleShell
-              ? 'pointer-events-none overflow-hidden rounded-2xl blur-[7px] opacity-45'
-              : '',
-          ]"
-        >
+        <div v-if="!capsuleSealedDisplay" class="overflow-hidden rounded-2xl">
           <!-- 标题字段仍由 post.title 承载，仅视觉隐藏以降噪 -->
           <h3
             v-if="!UI_HIDE_CARD_TITLE"
@@ -404,6 +647,11 @@ const onForestFollowClick = async (e: MouseEvent) => {
             />
           </div>
         </div>
+        <div
+          v-else
+          class="min-h-[11rem] rounded-2xl border border-amber-100/40 bg-amber-50/15"
+          aria-hidden="true"
+        />
       </div>
 
       <div
@@ -418,7 +666,7 @@ const onForestFollowClick = async (e: MouseEvent) => {
             :class="post.liked ? 'text-[#B76E7A]' : ''"
             :disabled="
               hugDisabled ||
-              (showCapsuleShell === true && !post.isMine)
+              (capsuleSealedDisplay === true && !post.isMine)
             "
             @click="triggerHug"
           >
@@ -477,7 +725,9 @@ const onForestFollowClick = async (e: MouseEvent) => {
 
         <button
           type="button"
-          class="flex min-w-0 flex-1 items-center justify-end gap-1 rounded-full px-1 py-2 text-[12px] text-[#7D6B5C] transition-all duration-200 active:scale-[0.98]"
+          class="flex min-w-0 flex-1 items-center justify-end gap-1 rounded-full px-1 py-2 text-[12px] text-[#7D6B5C] transition-all duration-200 active:scale-[0.98] disabled:opacity-45"
+          :disabled="posterGenerating"
+          @click.stop="openShareSheet"
         >
           <Share2 class="h-4 w-4" />
           <span class="text-[11px]">分享</span>
@@ -492,8 +742,55 @@ const onForestFollowClick = async (e: MouseEvent) => {
         <span>{{ post.comments }} 条温柔回声</span>
       </div>
     </div>
+  </article>
 
-    <van-popup
+  <PostShareMenu
+    v-model:show="shareSheetOpen"
+    :description="
+      isWeChatBrowser()
+        ? '微信内还可通过右上角「···」分享网页'
+        : undefined
+    "
+    @poster="generateSharePoster"
+    @copy="copyPostLink"
+  />
+
+  <Teleport to="body">
+    <div
+      v-if="posterHostVisible"
+      class="poster-html2canvas-host pointer-events-none"
+      style="
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 360px;
+        min-width: 360px;
+        max-width: 360px;
+        z-index: 1990;
+        visibility: visible;
+        opacity: 1;
+        pointer-events: none;
+      "
+      aria-hidden="true"
+    >
+      <SharePosterCard
+        ref="posterCardRef"
+        :mood="post.mood"
+        :body-text="posterBodyForShare"
+        :date-line="posterDateLine"
+        :bg-image="posterBgImage"
+        :qr-data-url="posterQrDataUrl"
+      />
+    </div>
+    <!-- 不透明白/黑层盖住 1990 的海报，避免 Toast overlay 半透明时透出半成品；html2canvas 仍截子树，不受此层影响 -->
+    <div
+      v-if="posterHostVisible"
+      class="pointer-events-none fixed inset-0 z-[1995] bg-black"
+      aria-hidden="true"
+    />
+  </Teleport>
+
+  <van-popup
       :show="hugPanelOpen"
       position="bottom"
       round
@@ -532,28 +829,58 @@ const onForestFollowClick = async (e: MouseEvent) => {
           </button>
         </div>
       </div>
-    </van-popup>
+  </van-popup>
 
-    <Teleport to="body">
-      <Transition name="img-preview-fade">
-        <div
-          v-if="imagePreviewUrl && UI_IMAGE_PREVIEW_ENABLED"
-          class="fixed inset-0 z-[5000] flex cursor-zoom-out items-center justify-center bg-black/[0.76] p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="图片预览"
+  <Teleport to="body">
+    <Transition name="img-preview-fade">
+      <div
+        v-if="imagePreviewUrl && UI_IMAGE_PREVIEW_ENABLED"
+        class="fixed inset-0 z-[5000] flex cursor-zoom-out items-center justify-center bg-black/[0.76] p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="图片预览"
+        @click="closeImagePreview"
+      >
+        <img
+          :src="imagePreviewUrl"
+          class="max-h-[88vh] max-w-full rounded-lg object-contain shadow-2xl"
+          alt="大图预览"
           @click="closeImagePreview"
+        />
+      </div>
+    </Transition>
+  </Teleport>
+
+  <Teleport to="body">
+    <Transition name="img-preview-fade">
+      <div
+        v-if="posterResultUrl"
+        class="fixed inset-0 z-[6000] flex flex-col items-center justify-center gap-3 bg-black/[0.82] px-4 pb-8 pt-14"
+        role="dialog"
+        aria-modal="true"
+        aria-label="心情海报"
+        @click.self="closePosterResultPreview"
+      >
+        <button
+          type="button"
+          class="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1.5 text-[13px] text-white/95 backdrop-blur-sm active:scale-95"
+          @click="closePosterResultPreview"
         >
-          <img
-            :src="imagePreviewUrl"
-            class="max-h-[88vh] max-w-full rounded-lg object-contain shadow-2xl"
-            alt="大图预览"
-            @click="closeImagePreview"
-          />
-        </div>
-      </Transition>
-    </Teleport>
-  </article>
+          关闭
+        </button>
+        <p class="max-w-[min(360px,92vw)] text-center text-[13px] leading-snug text-white/88">
+          长按下方图片保存到相册；也可截图分享
+        </p>
+        <img
+          :src="posterResultUrl"
+          class="max-h-[min(72dvh,560px)] w-auto max-w-[min(360px,92vw)] rounded-2xl object-contain shadow-2xl"
+          alt="心情海报"
+          @click.stop
+        />
+      </div>
+    </Transition>
+  </Teleport>
+  </div>
 </template>
 
 <style scoped>
