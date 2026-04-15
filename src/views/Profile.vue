@@ -3,60 +3,60 @@ import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 import {
   Bell,
   ChevronRight,
-  FileText,
+  // FileText,
   Home,
   KeyRound,
   LogOut,
-  PencilLine,
+  // PencilLine,
   UserRound,
 } from 'lucide-vue-next'
 import { showConfirmDialog, showToast } from 'vant'
-import { storeToRefs } from 'pinia'
+// import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import request from '@/api/request'
-import PostCard from '@/components/PostCard.vue'
+// import PostCard from '@/components/PostCard.vue'
 import { useAppToast } from '@/composables/useAppToast'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 import { compressImageToWebp } from '@/utils/compressImage'
 import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 
-type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
+// type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
 
-interface DraftItem {
-  id: number
-  title: string
-  content: string
-  updatedAt: string
-}
+// interface DraftItem {
+//   id: number
+//   title: string
+//   content: string
+//   updatedAt: string
+// }
 
 const router = useRouter()
 const store = usePostStore()
-const { huggingPostId, favoritingPostId } = storeToRefs(store)
+// const { huggingPostId, favoritingPostId } = storeToRefs(store)
 const userStore = useUserStore()
 const toast = useAppToast()
-const activeTab = ref<CenterTab>('我的发布')
+// const activeTab = ref<CenterTab>('我的发布')
 const avatarFileInput = useTemplateRef<HTMLInputElement>('avatarFileInput')
 
-const draftList = ref<DraftItem[]>([
-  {
-    id: 1,
-    title: '春季穿搭灵感合集',
-    content: '整理了 8 套通勤和周末都能穿的搭配，还差最后两张细节图。',
-    updatedAt: '今天 15:21',
-  },
-  {
-    id: 2,
-    title: '我的居家办公桌面改造',
-    content: '计划补充灯光参数和桌垫链接，明天发。',
-    updatedAt: '昨天 22:08',
-  },
-])
+// const draftList = ref<DraftItem[]>([
+//   {
+//     id: 1,
+//     title: '春季穿搭灵感合集',
+//     content: '整理了 8 套通勤和周末都能穿的搭配，还差最后两张细节图。',
+//     updatedAt: '今天 15:21',
+//   },
+//   {
+//     id: 2,
+//     title: '我的居家办公桌面改造',
+//     content: '计划补充灯光参数和桌垫链接，明天发。',
+//     updatedAt: '昨天 22:08',
+//   },
+// ])
 
 const myPosts = computed(() => store.posts.filter((item) => item.isMine))
-const myFavorites = computed(() =>
-  store.posts.filter((item) => item.favorited),
-)
+// const myFavorites = computed(() =>
+//   store.posts.filter((item) => item.favorited),
+// )
 
 const totalLikes = computed(() =>
   myPosts.value.reduce((sum, item) => sum + item.likes, 0),
@@ -110,7 +110,7 @@ const settings: Array<{
   // { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
 ]
 
-const centerTabs: CenterTab[] = ['我的发布', '我的收藏']
+// const centerTabs: CenterTab[] = ['我的发布', '我的收藏']
 
 const followerCount = ref(0)
 const followingCount = ref(0)
@@ -212,15 +212,15 @@ watch(
   },
 )
 
-const openPost = (id: string) => router.push(`/detail/${encodeURIComponent(id)}`)
-const setCenterTab = (tab: CenterTab) => {
-  activeTab.value = tab
-}
+// const openPost = (id: string) => router.push(`/detail/${encodeURIComponent(id)}`)
+// const setCenterTab = (tab: CenterTab) => {
+//   activeTab.value = tab
+// }
 
-const removeDraft = (id: number) => {
-  draftList.value = draftList.value.filter((item) => item.id !== id)
-  showToast('草稿已删除')
-}
+// const removeDraft = (id: number) => {
+//   draftList.value = draftList.value.filter((item) => item.id !== id)
+//   showToast('草稿已删除')
+// }
 
 const triggerAvatarPick = () => {
   if (!userStore.isLoggedIn) {
@@ -380,10 +380,10 @@ const handleLogout = async () => {
       </button>
     </div>
 
-    <div
+    <!-- <div
       class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-3 shadow-warm backdrop-blur-sm"
-    >
-      <div class="mb-3 flex rounded-full bg-apricot/80 p-1">
+    > -->
+      <!-- <div class="mb-3 flex rounded-full bg-apricot/80 p-1">
         <button
           v-for="tab in centerTabs"
           :key="tab"
@@ -398,10 +398,10 @@ const handleLogout = async () => {
         >
           {{ tab }}
         </button>
-      </div>
+      </div> -->
 
       <!-- v-show 保留三块 DOM，切换 Tab 时各自滚动位置互不影响 -->
-      <div>
+      <!-- <div>
         <div
           v-show="activeTab === '我的发布'"
           class="profile-local-scroll profile-tab-inner-scroll rounded-2xl"
@@ -492,8 +492,8 @@ const handleLogout = async () => {
             草稿箱为空，灵感来了随时记下来。
           </div>
         </div>
-      </div>
-    </div>
+      </div> -->
+    <!-- </div> -->
 
     <button
       type="button"

@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     CapsuleRevealCeremony: typeof import('./components/CapsuleRevealCeremony.vue')['default']
+    FirstVisitWelcome: typeof import('./components/FirstVisitWelcome.vue')['default']
     ForestAnonymousAvatar: typeof import('./components/ForestAnonymousAvatar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     MessageItem: typeof import('./components/MessageItem.vue')['default']

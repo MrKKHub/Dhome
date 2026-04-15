@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 import { useUserStore } from '@/store/userStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import FirstVisitWelcome from '@/components/FirstVisitWelcome.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,7 +99,10 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="relative min-h-dvh bg-warmCream">
+  <div>
+    <!-- 首次访问欢迎层：全屏遮罩，写入 muxin_first_timer 后不再出现 -->
+    <FirstVisitWelcome />
+    <div class="relative min-h-dvh bg-warmCream">
     <!-- 顶栏复位：与安全区对齐，DHome / 铃铛回到舒适的状态栏区域 -->
     <header
       v-if="!hideShellOnAuth"
@@ -202,6 +206,7 @@ const goBack = () => {
         </button>
       </nav>
     </footer>
+    </div>
   </div>
 </template>
 

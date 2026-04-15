@@ -1,9 +1,56 @@
+<!--
+ * @Author: huashikai huashikai@huitongjt.com
+ * @Date: 2026-03-31 14:31:41
+ * @LastEditors: huashikai huashikai@huitongjt.com
+ * @LastEditTime: 2026-04-13 19:09:36
+ * @FilePath: /dhome/index.html
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+-->
 <!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FAF9F6" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- OneSignal Web v16：defer + 页面侧用 OneSignalDeferred 队列初始化 -->
+    <!-- <script
+      src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+      defer
+    ></script> -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "d873882a-d5e2-4a54-83d9-ef7da9a931ad",
+        });
+      });
+    </script>
+    <!-- iOS 主屏幕与全屏 Web App；mobile-web-app-capable 为 Chromium 推荐写法 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="木心" />
+    <!-- iOS 需要固定尺寸（常用 180×180）；用超大 logo.png 常被忽略并回退成系统生成的「首字」图标 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- iOS 主屏幕启动图（manifest 无效）：尺寸须与设备像素一致，暖底 + 居中 Logo 见 public/splash/ -->
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash/1179x2556.png"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash/1290x2796.png"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash/1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
