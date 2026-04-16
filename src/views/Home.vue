@@ -22,7 +22,7 @@ const scrollTopCache = ref<Record<string, number>>({
   推荐: 0,
   关注: 0,
 })
-/** 首页列表区独立滚动（与 TabBar 留白对齐 style.css 中的 210px） */
+/** 首页列表区独立滚动，高度见 style.css `.home-feed-scroll-area` */
 const feedScrollEl = ref<HTMLElement | null>(null)
 
 const postStore = usePostStore()

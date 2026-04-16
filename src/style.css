@@ -52,11 +52,14 @@ body::before {
 }
 
 /**
- * 首页 / 个人中心 Tab 内容区：固定可视高度内滚动，底部 TabBar 常显（可按顶栏实际高度微调 210px）。
+ * 首页 / 个人中心 Tab 内容区：在顶栏（main pt-16）与底栏（main pb-28）之间滚动。
+ * 勿再用 min(40dvh, …)：40dvh 常小于 calc，会把列表压得过矮，底部出现大块空白。
  */
 .home-feed-scroll-area,
 .profile-tab-inner-scroll {
-  max-height: min(40dvh, calc(100dvh - 4rem - 7rem - 10rem - env(safe-area-inset-bottom, 0px)));
+  max-height: calc(
+    100dvh - 4rem - 7rem - 10rem - env(safe-area-inset-bottom, 0px)
+  );
 }
 
 /**

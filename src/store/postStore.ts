@@ -50,6 +50,8 @@ export interface PostItem {
   authorId?: string
   /** 森林匿名帖 */
   isAnonymous?: boolean
+  /** 森林匿名展示名（海报、卡片等） */
+  anonymousName?: string
   /** Lucide 图标键，如 leaf */
   anonymousAvatarKey?: string
   /** 当前用户是否已关注作者（非匿名帖） */
@@ -80,6 +82,8 @@ export interface UserProfilePagePayload {
   id?: string
   nickname?: string
   avatar?: string | null
+  /** 个人主页顶栏自定义背景（相对路径或完整 URL） */
+  profileBackground?: string | null
   bio?: string | null
   followerCount?: number
   followingCount?: number
@@ -257,6 +261,7 @@ function mapPostFromApi(raw: PostApiRow, overrides?: Partial<PostItem>): PostIte
       id: sid,
       authorId: undefined,
       isAnonymous: true,
+      anonymousName: anName,
       anonymousAvatarKey: anKey,
       nickname: anName,
       avatar: '',

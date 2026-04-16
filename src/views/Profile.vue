@@ -5,6 +5,7 @@ import {
   ChevronRight,
   // FileText,
   Home,
+  Images,
   KeyRound,
   LogOut,
   // PencilLine,
@@ -19,7 +20,10 @@ import { useAppToast } from '@/composables/useAppToast'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 import { compressImageToWebp } from '@/utils/compressImage'
+import { PRESET_AVATAR_URLS } from '@/config/avatar-gallery'
 import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
+import { resolveMoodBadgeClass } from '@/constants/moods'
+import EmotionNebulaWeather from '@/components/EmotionNebulaWeather.vue'
 
 // type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
 
@@ -81,11 +85,19 @@ const accountLine = computed(() => {
   return acc ? `邮箱 ${acc}` : '邮箱'
 })
 
+const avatarGalleryOpen = ref(false)
+const presetAvatarSaving = ref(false)
+
 const settings: Array<{
-  icon: typeof UserRound | typeof KeyRound | typeof Bell | typeof Home
+  icon:
+    | typeof UserRound
+    | typeof KeyRound
+    | typeof Bell
+    | typeof Home
+    | typeof Images
   label: string
   desc: string
-  action?: 'notifications' | 'changePassword' | 'myHome'
+  action?: 'notifications' | 'changePassword' | 'myHome' | 'avatarGallery'
 }> = [
   // { icon: UserRound, label: '账号与安全', desc: '手机号、密码、设备管理' },
   {
@@ -105,6 +117,12 @@ const settings: Array<{
     label: '消息通知',
     desc: '评论、点赞、关注提醒',
     action: 'notifications',
+  },
+  {
+    icon: Images,
+    label: '选择推荐头像',
+    desc: '官方插画库，与木心风格统一',
+    action: 'avatarGallery',
   },
   // { icon: WalletCards, label: '隐私设置', desc: '动态可见范围、黑名单' },
   // { icon: ShieldCheck, label: '社区规范', desc: '举报与反馈、帮助中心' },
@@ -131,6 +149,9 @@ async function loadProfileCounts() {
   }
   try {
     const res = await request.get<{
+      id?: string
+      nickname?: string
+      avatar?: string | null
       followerCount?: number
       followingCount?: number
       postsLast7DaysCount?: number
@@ -138,6 +159,14 @@ async function loadProfileCounts() {
       registeredAt?: string
       registered_at?: string
     }>(`/user/profile/${id}`)
+    const payload = res.data
+    if (payload?.id) {
+      userStore.mergeFromProfileSummary({
+        id: String(payload.id),
+        nickname: payload.nickname,
+        avatar: payload.avatar,
+      })
+    }
     followerCount.value = res.data?.followerCount ?? 0
     followingCount.value = res.data?.followingCount ?? 0
     postsLast7DaysCount.value = res.data?.postsLast7DaysCount ?? 0
@@ -201,6 +230,35 @@ const onSettingsRow = (item: (typeof settings)[number]) => {
       return
     }
     router.push('/notifications')
+    return
+  }
+  if (item.action === 'avatarGallery') {
+    if (!userStore.isLoggedIn) {
+      router.push({ path: '/login', query: { redirect: '/profile' } })
+      return
+    }
+    avatarGalleryOpen.value = true
+  }
+}
+
+/** 选中推荐头像后提交 update-profile，并同步首页「我的帖子」展示 */
+async function onPickPresetAvatar(url: string) {
+  if (presetAvatarSaving.value) return
+  presetAvatarSaving.value = true
+  try {
+    const r = await userStore.updateProfileAvatar(url)
+    if (r.ok) {
+      toast.success(r.message)
+      avatarGalleryOpen.value = false
+      const u = userStore.userInfo
+      if (u) {
+        store.patchMineAvatarDisplay(resolveAvatarUrl(u.avatar, u.email))
+      }
+    } else {
+      toast.fail(r.message)
+    }
+  } finally {
+    presetAvatarSaving.value = false
   }
 }
 
@@ -346,17 +404,34 @@ const handleLogout = async () => {
       <p class="mb-3 text-[12px] text-warmInk/45">
         近 7 天你共记录了 {{ postsLast7DaysCount }} 条心情。
       </p>
-      <ul v-if="moodLast7Days.length" class="space-y-2">
-        <li
-          v-for="row in moodLast7Days"
-          :key="row.mood"
-          class="flex items-center justify-between rounded-xl bg-apricot/50 px-3 py-2 text-[13px]"
-        >
-          <span class="font-medium text-warmInk">{{ row.mood }}</span>
-          <span class="tabular-nums text-warmInk/55">{{ row.count }} 次</span>
-        </li>
-      </ul>
-      <p v-else class="text-[13px] text-warmInk/40">本周还没有新记录，去发一条树洞吧。</p>
+      <!-- 上：心情列表；下：星云气象台（不裁切 blur，否则粒子光晕会被吃光） -->
+      <div class="flex min-h-0 flex-col gap-3">
+        <div class="relative z-10 min-w-0 w-full">
+          <ul v-if="moodLast7Days.length" class="space-y-2">
+            <li
+              v-for="row in moodLast7Days"
+              :key="row.mood"
+              :class="[
+                'flex items-center justify-between rounded-xl px-3 py-2 text-[13px]',
+                resolveMoodBadgeClass(row.mood),
+              ]"
+            >
+              <span class="font-medium">{{ row.mood }}</span>
+              <span class="tabular-nums opacity-80">{{ row.count }} 次</span>
+            </li>
+          </ul>
+          <p v-else class="text-[13px] text-warmInk/40">
+            本周还没有新记录，去发一条树洞吧。
+          </p>
+        </div>
+        <div class="relative z-0 w-full overflow-visible rounded-2xl">
+          <EmotionNebulaWeather
+            class="block min-h-[7.25rem] w-full"
+            :mood-rows="moodLast7Days"
+            :total-records="postsLast7DaysCount"
+          />
+        </div>
+      </div>
     </div>
 
     <div
@@ -379,6 +454,49 @@ const handleLogout = async () => {
         <ChevronRight class="h-4 w-4 text-warmInk/35" />
       </button>
     </div>
+
+    <van-popup
+      :show="avatarGalleryOpen"
+      position="bottom"
+      round
+      teleport="body"
+      :style="{ maxHeight: '78vh' }"
+      safe-area-inset-bottom
+      @update:show="avatarGalleryOpen = $event"
+    >
+      <div class="px-4 pb-6 pt-3">
+        <p class="text-center text-[15px] font-semibold text-warmInk">选择推荐头像</p>
+        <p class="mt-1 text-center text-[12px] leading-relaxed text-warmInk/45">
+          来自 DiceBear 官方风格：Notionists · Fun Emoji · Adventurer Neutral
+        </p>
+        <div
+          class="mt-4 grid max-h-[52vh] grid-cols-4 gap-3 overflow-y-auto px-0.5 pb-2"
+        >
+          <button
+            v-for="u in PRESET_AVATAR_URLS"
+            :key="u"
+            type="button"
+            class="flex aspect-square items-center justify-center rounded-2xl border border-[#F0E8E0]/90 bg-apricot/30 p-1 transition-transform active:scale-95 disabled:opacity-50"
+            :disabled="presetAvatarSaving"
+            @click="onPickPresetAvatar(u)"
+          >
+            <img
+              :src="u"
+              alt=""
+              class="h-full w-full rounded-xl object-cover"
+            />
+          </button>
+        </div>
+        <button
+          type="button"
+          class="mt-2 w-full rounded-xl border border-[#E8DDD4] bg-white py-2.5 text-[14px] text-warmInk/80"
+          :disabled="presetAvatarSaving"
+          @click="avatarGalleryOpen = false"
+        >
+          取消
+        </button>
+      </div>
+    </van-popup>
 
     <!-- <div
       class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-3 shadow-warm backdrop-blur-sm"

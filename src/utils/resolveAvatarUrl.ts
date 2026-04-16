@@ -1,3 +1,5 @@
+import { isPresetGalleryAvatarUrl } from '@/config/avatar-gallery'
+
 /**
  * 帖子图、头像等上传路径归一化。
  * 开发环境把指向本服务的 `http://host:3006/uploads/...` 转为站点相对 `/uploads/...`，
@@ -38,6 +40,10 @@ export function resolveAvatarUrl(
   if (!path?.trim()) return fallback
 
   const trimmed = path.trim()
+  /** 推荐库或已入库的 DiceBear 官方 URL：直接返回，避免再走上传域名拼接逻辑 */
+  if (isPresetGalleryAvatarUrl(trimmed)) {
+    return trimmed
+  }
   if (/^https?:\/\//i.test(trimmed)) {
     const u = resolvePublicUploadUrl(trimmed)
     if (u.startsWith('http')) return u
@@ -61,4 +67,31 @@ export function resolveAvatarUrl(
   const origin = base.replace(/\/api\/?$/, '') ?? ''
   if (!origin) return pathNorm
   return `${origin}${pathNorm}`
+}
+
+/**
+ * 将上传资源路径（如主页背景 `/uploads/profile-backgrounds/...`）解析为浏览器可请求的绝对 URL。
+ * 不含头像缺省占位逻辑；空值返回空字符串。
+ */
+export function resolveAbsoluteUploadUrl(path: string | null | undefined): string {
+  if (path == null || !String(path).trim()) return ''
+  const trimmed = String(path).trim()
+  if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed
+  if (/^https?:\/\//i.test(trimmed)) {
+    const u = resolvePublicUploadUrl(trimmed)
+    if (u.startsWith('http')) return u
+    if (u.startsWith('/uploads/')) {
+      if (import.meta.env.DEV) return u
+      const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? ''
+      const origin = base.replace(/\/api\/?$/, '') ?? ''
+      return origin ? `${origin}${u}` : u
+    }
+    return trimmed
+  }
+  const pathNorm = resolvePublicUploadUrl(trimmed)
+  if (!pathNorm) return ''
+  if (import.meta.env.DEV && pathNorm.startsWith('/uploads/')) return pathNorm
+  const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? ''
+  const origin = base.replace(/\/api\/?$/, '') ?? ''
+  return origin ? `${origin}${pathNorm}` : pathNorm
 }

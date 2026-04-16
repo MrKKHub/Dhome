@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { showToast } from 'vant'
@@ -12,13 +12,22 @@ import {
   type UserProfilePagePayload,
 } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
-import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
+import { compressImageToWebp } from '@/utils/compressImage'
+import { resolveAbsoluteUploadUrl, resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 import { storeToRefs } from 'pinia'
 import { playLeafConfetti } from '@/utils/leafConfetti'
 import { resolveMoodBadgeClass } from '@/constants/moods'
 import { getStayInfo } from '@/utils/getStayInfo'
 /** 个人主页顶栏实景：林间晨光（Vite 静态资源） */
 import headerTreeSceneUrl from '@/assets/tree/forest-morning.jpg'
+
+const PROFILE_BG_MAX_BYTES = 2 * 1024 * 1024
+const PROFILE_BG_ACCEPT_MIME = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+])
 
 const route = useRoute()
 const router = useRouter()
@@ -42,6 +51,14 @@ const activeTab = ref(0)
 const followLoading = ref(false)
 const followBtnRef = ref<HTMLButtonElement | null>(null)
 
+const isViewerSelf = computed(() => !!profile.value?.isViewerSelf)
+const bgSheetOpen = ref(false)
+const bgPreviewObjectUrl = ref<string | null>(null)
+const bgUploading = ref(false)
+const galleryInputRef = ref<HTMLInputElement | null>(null)
+const cameraInputRef = ref<HTMLInputElement | null>(null)
+const avatarFileInputRef = ref<HTMLInputElement | null>(null)
+
 /** 圆形头像展示：始终走 resolveAvatarUrl（含缺省占位） */
 const avatarDisplayUrl = computed(() =>
   resolveAvatarUrl(profile.value?.avatar ?? null, profile.value?.nickname ?? ''),
@@ -51,8 +68,23 @@ function onHeaderTreeImageError() {
   headerTreeImageFailed.value = true
 }
 
+const hasCustomOrPreviewBg = computed(
+  () =>
+    !!(bgPreviewObjectUrl.value || (profile.value?.profileBackground ?? '').trim()),
+)
+
 /** 背景层用 CSS background-image，与前景 .header-content 物理隔离（模糊不作用于文字/头像） */
 const headerBannerBgStyle = computed(() => {
+  if (bgPreviewObjectUrl.value) {
+    return { backgroundImage: `url(${bgPreviewObjectUrl.value})` }
+  }
+  const saved = profile.value?.profileBackground?.trim()
+  if (saved) {
+    const u = resolveAbsoluteUploadUrl(saved)
+    if (u) {
+      return { backgroundImage: `url(${u})` }
+    }
+  }
   if (headerTreeImageFailed.value) {
     return {}
   }
@@ -60,6 +92,174 @@ const headerBannerBgStyle = computed(() => {
     backgroundImage: `url(${headerTreeSceneUrl})`,
   }
 })
+
+function revokeBgPreview() {
+  if (bgPreviewObjectUrl.value) {
+    URL.revokeObjectURL(bgPreviewObjectUrl.value)
+    bgPreviewObjectUrl.value = null
+  }
+}
+
+function isAllowedProfileImageFile(file: File): boolean {
+  const t = (file.type || '').toLowerCase()
+  if (t && PROFILE_BG_ACCEPT_MIME.has(t)) return true
+  const n = file.name.toLowerCase()
+  return /\.(jpe?g|png|webp)$/i.test(n)
+}
+
+async function compressProfileBackground(file: File): Promise<Blob> {
+  const widths = [1400, 1200, 1000, 900, 800, 720, 640]
+  const qualities = [0.82, 0.74, 0.66, 0.58, 0.5, 0.42, 0.35]
+  for (const w of widths) {
+    for (const q of qualities) {
+      const blob = await compressImageToWebp(file, w, q)
+      if (blob.size <= PROFILE_BG_MAX_BYTES) return blob
+    }
+  }
+  throw new Error('压缩后仍超过 2MB，请换一张更小的图片')
+}
+
+function openProfileBgSheet() {
+  if (!isViewerSelf.value || bgUploading.value) return
+  bgSheetOpen.value = true
+}
+
+function profileLoginRedirectPath() {
+  return `/user/${encodeURIComponent(userId.value)}`
+}
+
+/** 与「我的」页一致：点击头像调起相册并上传 */
+function triggerAvatarPick() {
+  if (!userStore.isLoggedIn) {
+    router.push({
+      path: '/login',
+      query: { redirect: profileLoginRedirectPath() },
+    })
+    return
+  }
+  avatarFileInputRef.value?.click()
+}
+
+async function onAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !userStore.isLoggedIn) return
+  let toSend = file
+  try {
+    const blob = await compressImageToWebp(file, 400, 0.8)
+    toSend = new File([blob], 'avatar.webp', { type: 'image/webp' })
+  } catch {
+    toSend = file
+  }
+  const r = await userStore.uploadAvatar(toSend)
+  if (r.ok) {
+    toast.success(r.message)
+  } else {
+    toast.fail(r.message)
+  }
+  if (r.ok) {
+    const u = userStore.userInfo
+    if (u && profile.value) {
+      profile.value.avatar = u.avatar ?? null
+      postStore.patchMineAvatarDisplay(
+        resolveAvatarUrl(u.avatar, u.email ?? ''),
+      )
+    }
+  }
+  if (!r.ok && r.message.includes('登录')) {
+    router.push({
+      path: '/login',
+      query: { redirect: profileLoginRedirectPath() },
+    })
+  }
+}
+
+function triggerGalleryPick() {
+  bgSheetOpen.value = false
+  void nextTick(() => galleryInputRef.value?.click())
+}
+
+function triggerCameraPick() {
+  bgSheetOpen.value = false
+  void nextTick(() => cameraInputRef.value?.click())
+}
+
+async function resetProfileBackground() {
+  bgSheetOpen.value = false
+  if (!isViewerSelf.value || bgUploading.value) return
+  bgUploading.value = true
+  try {
+    const res = await request.post<{ profileBackground?: string | null }>(
+      '/user/update-background',
+      { backgroundUrl: null },
+    )
+    revokeBgPreview()
+    if (profile.value) {
+      profile.value.profileBackground = res.data?.profileBackground ?? null
+    }
+    headerTreeImageFailed.value = false
+    toast.success('已恢复默认背景')
+  } catch (e) {
+    let msg = '恢复失败'
+    if (axios.isAxiosError(e)) {
+      const raw = (e.response?.data as { message?: string })?.message
+      if (typeof raw === 'string' && raw.trim()) msg = raw.trim()
+    }
+    toast.fail(msg)
+  } finally {
+    bgUploading.value = false
+  }
+}
+
+async function onProfileBgFileChosen(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !isViewerSelf.value) return
+  if (!isAllowedProfileImageFile(file)) {
+    showToast('仅支持 JPG、PNG、WebP')
+    return
+  }
+  if (file.size > PROFILE_BG_MAX_BYTES) {
+    showToast('图片需不超过 2MB')
+    return
+  }
+
+  revokeBgPreview()
+  bgPreviewObjectUrl.value = URL.createObjectURL(file)
+  bgUploading.value = true
+  try {
+    const blob = await compressProfileBackground(file)
+    const fd = new FormData()
+    fd.append('file', blob, 'profile-background.webp')
+    const res = await request.post<{ profileBackground?: string | null }>(
+      '/user/upload-profile-background',
+      fd,
+      { timeout: 60000 },
+    )
+    revokeBgPreview()
+    if (profile.value) {
+      profile.value.profileBackground = res.data?.profileBackground ?? null
+    }
+    toast.success('背景已更新')
+  } catch (e) {
+    revokeBgPreview()
+    let msg = '上传失败'
+    if (axios.isAxiosError(e)) {
+      if (e.response?.status === 401) msg = '请先登录'
+      else {
+        const raw = (e.response?.data as { message?: string })?.message
+        if (typeof raw === 'string' && raw.trim()) msg = raw.trim()
+      }
+    } else if (e instanceof Error && e.message) {
+      msg = e.message
+    }
+    toast.fail(msg)
+  } finally {
+    bgUploading.value = false
+  }
+}
 
 const isFollowed = computed(() => !!profile.value?.isFollowedByViewer)
 
@@ -172,7 +372,12 @@ async function toggleFollow() {
 
 onMounted(load)
 watch(userId, () => {
+  revokeBgPreview()
   void load()
+})
+
+onBeforeUnmount(() => {
+  revokeBgPreview()
 })
 
 function onPostDeleted(id: string) {
@@ -201,7 +406,10 @@ function onPostDeleted(id: string) {
         <!-- 晨间秘境：背景栈与 .header-content 兄弟层级，模糊仅关在背景层 -->
         <div
           class="header-banner-container"
-          :class="{ 'header-banner-container--fallback': headerTreeImageFailed }"
+          :class="{
+            'header-banner-container--fallback':
+              headerTreeImageFailed && !hasCustomOrPreviewBg,
+          }"
         >
           <!-- 填补全局顶栏与圆角横幅之间的空隙：轻量云朵 + 小花装饰 -->
           <div class="header-bridge-decor" aria-hidden="true">
@@ -220,20 +428,60 @@ function onPostDeleted(id: string) {
           </div>
           <!-- 仅用于探测实景图是否加载失败（不展示） -->
           <img
-            v-if="!headerTreeImageFailed"
+            v-if="!headerTreeImageFailed && !hasCustomOrPreviewBg"
             :src="headerTreeSceneUrl"
             class="header-tree-probe"
             alt=""
             @error="onHeaderTreeImageError"
           />
-          <div class="header-bg-stack" aria-hidden="true">
+          <div
+            class="header-bg-stack"
+            :class="{ 'header-bg-stack--custom': hasCustomOrPreviewBg }"
+            aria-hidden="true"
+          >
             <div class="header-bg-image" :style="headerBannerBgStyle" />
             <div class="header-bg-mask" />
             <div class="header-bottom-feather" />
           </div>
+          <button
+            v-if="isViewerSelf && !bgUploading"
+            type="button"
+            class="header-bg-tap-area"
+            aria-label="更换主页背景"
+            @click="openProfileBgSheet"
+          />
           <div class="header-content">
             <div class="user-info-section">
+              <template v-if="isViewerSelf">
+                <input
+                  ref="avatarFileInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="user-detail-avatar-file"
+                  @change="onAvatarFileChange"
+                />
+                <button
+                  type="button"
+                  class="user-info-section__avatar-btn relative h-24 w-24 shrink-0 overflow-hidden rounded-full border border-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-transform duration-200 active:scale-[0.94] disabled:pointer-events-none"
+                  :disabled="userStore.uploadingAvatar"
+                  aria-label="更换头像"
+                  @click="triggerAvatarPick"
+                >
+                  <img
+                    :src="avatarDisplayUrl"
+                    :alt="profile.nickname"
+                    class="user-info-section__avatar h-24 w-24 rounded-full object-cover"
+                  />
+                  <span
+                    v-if="userStore.uploadingAvatar"
+                    class="absolute inset-0 flex items-center justify-center rounded-full bg-[#3d3530]/30 text-[11px] font-medium text-white"
+                  >
+                    …
+                  </span>
+                </button>
+              </template>
               <img
+                v-else
                 :src="avatarDisplayUrl"
                 :alt="profile.nickname"
                 class="user-info-section__avatar h-24 w-24 rounded-full object-cover"
@@ -286,6 +534,15 @@ function onPostDeleted(id: string) {
                 {{ isFollowed ? '已关注' : '关注 Ta' }}
               </button>
             </div>
+          </div>
+          <div
+            v-if="bgUploading"
+            class="header-banner-uploading"
+            role="status"
+            aria-live="polite"
+          >
+            <van-loading type="spinner" color="#faf9f6" size="28px" />
+            <span class="header-banner-uploading__text">上传中…</span>
           </div>
         </div>
 
@@ -343,6 +600,47 @@ function onPostDeleted(id: string) {
               </van-tab>
             </van-tabs>
         </section>
+
+        <input
+          ref="galleryInputRef"
+          type="file"
+          class="profile-bg-file-input"
+          accept="image/jpeg,image/png,image/webp"
+          @change="onProfileBgFileChosen"
+        />
+        <input
+          ref="cameraInputRef"
+          type="file"
+          class="profile-bg-file-input"
+          accept="image/*"
+          capture="environment"
+          @change="onProfileBgFileChosen"
+        />
+
+        <van-action-sheet
+          :show="bgSheetOpen"
+          title="主页背景"
+          cancel-text="取消"
+          teleport="body"
+          class="profile-bg-action-sheet"
+          @update:show="bgSheetOpen = $event"
+        >
+          <div class="profile-bg-sheet-actions">
+            <button type="button" class="profile-bg-sheet-btn" @click="triggerCameraPick">
+              拍照
+            </button>
+            <button type="button" class="profile-bg-sheet-btn" @click="triggerGalleryPick">
+              从相册选择
+            </button>
+            <button
+              type="button"
+              class="profile-bg-sheet-btn profile-bg-sheet-btn--muted"
+              @click="resetProfileBackground"
+            >
+              恢复默认背景
+            </button>
+          </div>
+        </van-action-sheet>
       </div>
     </template>
   </div>
@@ -525,6 +823,108 @@ function onPostDeleted(id: string) {
   box-shadow: 0 4px 24px rgba(60, 48, 40, 0.06);
 }
 
+/* 自定义 / 预览图：略压暗，保证上层昵称与头像对比度 */
+.header-bg-stack--custom .header-bg-image {
+  filter: blur(2px) saturate(1.04) brightness(0.9);
+}
+
+.header-bg-stack--custom .header-bg-mask {
+  background: linear-gradient(
+    to bottom,
+    rgba(24, 20, 18, 0.28) 0%,
+    rgba(24, 20, 18, 0.38) 55%,
+    rgba(250, 249, 246, 0.82) 100%
+  );
+}
+
+.header-banner-uploading {
+  position: absolute;
+  top: 0;
+  left: max(14px, env(safe-area-inset-left, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  height: 280px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: auto;
+  border-radius: 12px;
+  background: rgba(42, 34, 30, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.header-banner-uploading__text {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 252, 250, 0.95);
+  letter-spacing: 0.04em;
+}
+
+/** 与 .header-bg-stack 同框，叠在默认背景之上、正文之下，便于点击顶部留白区域更换背景 */
+.header-bg-tap-area {
+  position: absolute;
+  top: 0;
+  left: max(14px, env(safe-area-inset-left, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  height: 280px;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.profile-bg-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-bg-sheet-actions {
+  padding: 8px 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-bg-sheet-btn {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #4a3d3d;
+  background: linear-gradient(180deg, #faf7f4 0%, #f2ebe4 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset, 0 2px 10px rgba(80, 60, 48, 0.08);
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.profile-bg-sheet-btn:active {
+  transform: scale(0.99);
+  filter: brightness(0.97);
+}
+
+.profile-bg-sheet-btn--muted {
+  color: #7a6a62;
+  background: rgba(250, 249, 246, 0.95);
+  box-shadow: 0 0 0 1px rgba(200, 184, 170, 0.45) inset;
+}
+
 .header-banner-container--fallback .header-bg-stack {
   background: linear-gradient(
     165deg,
@@ -587,10 +987,38 @@ function onPostDeleted(id: string) {
 
 .header-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  /* 让点击穿透到下层 .header-bg-tap-area；仅交互控件单独恢复命中 */
+  pointer-events: none;
   padding-top: 0.35rem;
   padding-bottom: 0.5rem;
   text-align: center;
+}
+
+.header-content :where(button, a, [role='button']) {
+  pointer-events: auto;
+}
+
+.header-content .mood-stats--in-header {
+  pointer-events: auto;
+}
+
+.header-content .user-info-section__avatar-btn {
+  pointer-events: auto;
+}
+
+.user-detail-avatar-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .user-info-section {

@@ -9,24 +9,37 @@ import {
 } from '@/constants/moods'
 import type { PostMood } from '@/constants/moods'
 
-const props = defineProps<{
-  mood: PostMood
-  bodyText: string
-  dateLine: string
-  /** 首图 URL；跨域失败时自动退化为纯渐变底 */
-  bgImage?: string | null
-  qrDataUrl: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    mood: PostMood
+    bodyText: string
+    dateLine: string
+    /** 首图 URL（建议已走 normalizeSrcForPosterHtml2Canvas）；跨域失败时自动退化为纯渐变底 */
+    bgImage?: string | null
+    /** 发布者昵称（含森林匿名展示名） */
+    authorNickname: string
+    /** 发布者头像 URL；匿名帖可为空，由占位图标代替 */
+    authorAvatarSrc?: string | null
+    authorIsAnonymous?: boolean
+    qrDataUrl: string
+  }>(),
+  {
+    authorAvatarSrc: null,
+    authorIsAnonymous: false,
+  },
+)
 
 const rootRef = ref<HTMLElement | null>(null)
 const bgFailed = ref(false)
 
-/** 仅外域图加 anonymous，同源 /uploads 不加以免静态服务未配 CORS 时拖垮解码 */
-const bgImgCrossOrigin = computed<'anonymous' | undefined>(() => {
-  const src = props.bgImage
+/** 仅外域图加 anonymous；同源 `/uploads/` 不加以免静态服务未配 CORS 时拖垮解码 */
+function imgCrossOriginForCapture(
+  src: string | null | undefined,
+): 'anonymous' | undefined {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) {
     return undefined
   }
+  if (src.startsWith('/uploads/')) return undefined
   if (typeof window === 'undefined') return undefined
   try {
     const u = new URL(src, window.location.href)
@@ -34,7 +47,13 @@ const bgImgCrossOrigin = computed<'anonymous' | undefined>(() => {
   } catch {
     return undefined
   }
-})
+}
+
+const bgImgCrossOrigin = computed(() => imgCrossOriginForCapture(props.bgImage))
+
+const authorAvatarCrossOrigin = computed(() =>
+  imgCrossOriginForCapture(props.authorAvatarSrc),
+)
 
 const moodBadgeClass = () => MOOD_BADGE_CLASS[props.mood] ?? MOOD_BADGE_CLASS['平静']
 
@@ -69,45 +88,196 @@ defineExpose({
       class="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#FFF8F3] via-[#F5EDE6] to-[#E8DDD4]"
       aria-hidden="true"
     />
-    <img
-      v-if="bgImage && !bgFailed"
-      :src="bgImage"
-      alt=""
-      :crossorigin="bgImgCrossOrigin"
-      class="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-35 blur-2xl"
-      @error="bgFailed = true"
-    />
     <div
       class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/75 via-white/55 to-[#FDF8F3]/90"
       aria-hidden="true"
     />
 
-    <div class="relative z-[1] flex min-h-[520px] flex-col px-7 pb-8 pt-10">
-      <div class="mb-5">
+    <div
+      class="relative z-[1] px-7 pb-8 pt-10"
+      style="
+        display: flex;
+        flex-direction: column;
+        min-height: 520px;
+        box-sizing: border-box;
+      "
+    >
+      <!-- 内联布局：html2canvas 对部分 WebView 下 Tailwind flex 截屏不稳定 -->
+      <div
+        class="mb-4"
+        style="
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          width: 100%;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            min-width: 0;
+            flex: 1;
+            align-items: flex-start;
+            gap: 10px;
+          "
+        >
+          <img
+            v-if="authorAvatarSrc && !authorIsAnonymous"
+            :src="authorAvatarSrc"
+            alt=""
+            :crossorigin="authorAvatarCrossOrigin"
+            width="44"
+            height="44"
+            style="
+              width: 44px;
+              height: 44px;
+              border-radius: 9999px;
+              object-fit: cover;
+              border: 1px solid #e5d9cf;
+              flex-shrink: 0;
+              display: block;
+            "
+          />
+          <div
+            v-else-if="authorIsAnonymous"
+            style="
+              width: 44px;
+              height: 44px;
+              border-radius: 9999px;
+              flex-shrink: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 1px solid #b8d4b0;
+              background: #e8f5e9;
+              font-size: 18px;
+            "
+            aria-hidden="true"
+          >
+            🌿
+          </div>
+          <div
+            v-else
+            style="
+              width: 44px;
+              height: 44px;
+              border-radius: 9999px;
+              flex-shrink: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 1px solid #e5d9cf;
+              background: #f5ede6;
+              font-size: 12px;
+              font-weight: 600;
+              color: #9a8a7e;
+            "
+            aria-hidden="true"
+          >
+            木
+          </div>
+          <p
+            style="
+              min-width: 0;
+              flex: 1;
+              margin: 0;
+              padding-top: 2px;
+              color: #5c4b4b;
+              font-size: 15px;
+              font-weight: 600;
+              line-height: 1.45;
+              white-space: normal;
+              overflow-wrap: anywhere;
+              word-break: break-word;
+            "
+          >
+            {{ authorNickname }}
+          </p>
+        </div>
         <span
-          class="inline-block rounded-full px-3.5 py-1.5 text-[13px] font-semibold"
+          class="rounded-full px-3 py-1.5 text-[12px] font-semibold leading-none"
           :class="moodBadgeClass()"
           :style="moodBadgePosterStyle()"
+          style="flex-shrink: 0; align-self: flex-start"
         >
           {{ mood }}
         </span>
       </div>
 
       <p
-        class="mb-6 flex-1 whitespace-pre-wrap text-[17px] font-medium leading-[1.75] text-[#4A3E3E]"
-        style="word-break: break-word; color: #4a3e3e"
+        class="mb-3"
+        style="
+          margin: 0 0 12px;
+          white-space: pre-wrap;
+          word-break: break-word;
+          color: #4a3e3e;
+          font-size: 17px;
+          font-weight: 500;
+          line-height: 1.75;
+        "
       >
         {{ bodyText }}
       </p>
 
+      <div
+        v-if="bgImage && !bgFailed"
+        class="mb-5"
+        style="
+          position: relative;
+          isolation: isolate;
+          overflow: hidden;
+          border-radius: 16px;
+          width: 100%;
+          height: 220px;
+          background: #faf7f5;
+          line-height: 0;
+        "
+      >
+        <img
+          :src="bgImage"
+          alt=""
+          :crossorigin="bgImgCrossOrigin"
+          width="304"
+          height="220"
+          style="
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            border-radius: 16px;
+            vertical-align: top;
+          "
+          @error="bgFailed = true"
+        />
+      </div>
+
+      <div style="flex: 1; min-height: 12px" aria-hidden="true" />
+
       <p
-        class="mb-8 text-[12px] tracking-wide text-[#8B7B7B]"
-        style="color: #8b7b7b"
+        class="mb-8"
+        style="
+          margin: 0 0 32px;
+          color: #8b7b7b;
+          font-size: 12px;
+          letter-spacing: 0.04em;
+        "
       >
         {{ dateLine }}
       </p>
 
-      <div class="mt-auto flex items-end justify-between gap-4 border-t border-[#E8DDD4]/80 pt-5">
+      <div
+        style="
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+          border-top: 1px solid rgba(232, 221, 212, 0.85);
+          padding-top: 20px;
+          margin-top: auto;
+        "
+      >
         <p
           class="max-w-[180px] text-[11px] font-medium leading-snug text-[#7D6B5C]"
           style="color: #7d6b5c"

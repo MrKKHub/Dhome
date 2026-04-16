@@ -184,6 +184,36 @@ export const useUserStore = defineStore('user', () => {
     clearSessionStorage()
   }
 
+  /**
+   * 用 GET /user/profile/:id 等接口返回的公开字段刷新本地会话（昵称、头像）。
+   * 解决：服务端已更新头像，但 Pinia/localStorage 仍为登录时的旧值，导致仅「我的」顶栏与列表不一致。
+   */
+  const mergeFromProfileSummary = (summary: {
+    id: string
+    nickname?: string
+    avatar?: string | null
+  }) => {
+    if (!userInfo.value || !token.value) {
+      return
+    }
+    if (String(summary.id) !== String(userInfo.value.id)) {
+      return
+    }
+    const cur = userInfo.value
+    const nextNickname =
+      typeof summary.nickname === 'string' && summary.nickname.trim()
+        ? summary.nickname.trim()
+        : cur.nickname
+    const next: UserInfo = {
+      id: cur.id,
+      email: cur.email,
+      nickname: nextNickname,
+      avatar: summary.avatar !== undefined ? summary.avatar : cur.avatar,
+    }
+    userInfo.value = next
+    persistSession(token.value, next)
+  }
+
   /** 上传头像：成功后合并用户信息并写回 localStorage */
   const uploadAvatar = async (file: File): Promise<AuthResult> => {
     if (!token.value || !userInfo.value) {
@@ -238,6 +268,44 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /** 从推荐库选择头像：写入后端 avatar 并同步本地会话 */
+  const updateProfileAvatar = async (avatarUrl: string): Promise<AuthResult> => {
+    if (!token.value || !userInfo.value) {
+      return { ok: false, message: '请先登录后再更换头像' }
+    }
+    const trimmed = avatarUrl.trim()
+    if (!trimmed) {
+      return { ok: false, message: '请选择头像' }
+    }
+    try {
+      const res = await request.post<{
+        id: string
+        email: string
+        nickname: string
+        avatar: string | null
+      }>('/user/update-profile', { avatar: trimmed })
+
+      const u = res.data
+      if (!u?.id) {
+        return { ok: false, message: '更新响应异常，请稍后再试' }
+      }
+      const next: UserInfo = {
+        id: u.id,
+        email: u.email,
+        nickname: u.nickname,
+        avatar: u.avatar,
+      }
+      userInfo.value = next
+      persistSession(token.value, next)
+      return { ok: true, message: '头像已更新' }
+    } catch (e) {
+      return {
+        ok: false,
+        message: axiosErrorMessage(e, '头像更新失败，请稍后再试'),
+      }
+    }
+  }
+
   return {
     isLoggedIn,
     token,
@@ -249,5 +317,7 @@ export const useUserStore = defineStore('user', () => {
     register,
     logout,
     uploadAvatar,
+    updateProfileAvatar,
+    mergeFromProfileSummary,
   }
 })

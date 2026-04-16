@@ -35,6 +35,8 @@ import { playHugHeartConfetti } from '@/utils/hugHeartConfetti'
 import PostShareMenu from '@/components/PostShareMenu.vue'
 import SharePosterCard from '@/components/SharePosterCard.vue'
 import {
+  normalizeSrcForPosterHtml2Canvas,
+  resolvePosterRasterDataUrl,
   stripRemoteImagesInHtml2CanvasClone,
   waitPosterImagesLoaded,
 } from '@/utils/posterHtml2Canvas'
@@ -69,6 +71,9 @@ const posterHostVisible = ref(false)
 const posterQrDataUrl = ref('')
 const posterCardRef = ref<InstanceType<typeof SharePosterCard> | null>(null)
 const posterGenerating = ref(false)
+/** 预拉成 data URL，避免 html2canvas 跨域/克隆下头像与配图不绘制 */
+const sharePosterBgDataUrl = ref<string | null>(null)
+const sharePosterAvatarDataUrl = ref<string | null>(null)
 /** 海报结果：Blob URL + 原生 img 全屏预览（避免 Vant ImagePreview+Swipe 单图 data URL 异常与中央竖线） */
 const posterResultUrl = ref<string | null>(null)
 
@@ -380,11 +385,26 @@ const posterDateLine = computed(
   () => `记录于 ${props.post.createdAt}`,
 )
 
+/** 转为当前站点 `/uploads/...`，避免 html2canvas 克隆里被误删或跨域污染画布 */
 const posterBgImage = computed(() => {
   if (capsuleSealedDisplay.value) {
     return null
   }
-  return props.post.images[0] ?? null
+  return normalizeSrcForPosterHtml2Canvas(props.post.images[0] ?? null)
+})
+
+const posterAuthorNickname = computed(() => {
+  if (props.post.isAnonymous) {
+    return props.post.anonymousName?.trim() || '森林友人'
+  }
+  return props.post.nickname?.trim() || '木心友邻'
+})
+
+const posterAuthorAvatarNormalized = computed(() => {
+  if (capsuleSealedDisplay.value || props.post.isAnonymous) {
+    return null
+  }
+  return normalizeSrcForPosterHtml2Canvas(props.post.avatar)
 })
 
 function openShareSheet(e: MouseEvent) {
@@ -429,12 +449,25 @@ async function generateSharePoster() {
     overlay: true,
   })
   try {
+    sharePosterBgDataUrl.value = null
+    sharePosterAvatarDataUrl.value = null
     const link = getPostShareUrl(props.post.id)
-    posterQrDataUrl.value = await QRCode.toDataURL(link, {
-      width: 152,
-      margin: 1,
-      color: { dark: '#5C4B4B', light: '#FFFFFF' },
-    })
+    const cap = capsuleSealedDisplay.value
+    const img0 = props.post.images[0] ?? null
+    const [qr, bgData, avData] = await Promise.all([
+      QRCode.toDataURL(link, {
+        width: 152,
+        margin: 1,
+        color: { dark: '#5C4B4B', light: '#FFFFFF' },
+      }),
+      !cap ? resolvePosterRasterDataUrl(img0) : Promise.resolve(null),
+      !cap && !props.post.isAnonymous
+        ? resolvePosterRasterDataUrl(props.post.avatar)
+        : Promise.resolve(null),
+    ])
+    posterQrDataUrl.value = qr
+    sharePosterBgDataUrl.value = bgData
+    sharePosterAvatarDataUrl.value = avData
     posterHostVisible.value = true
     /**
      * 强制在 DOM 完全挂载后再截图（nextTick 链 + 字体就绪 + 图 load）
@@ -489,6 +522,8 @@ async function generateSharePoster() {
       throw new Error('poster blob failed')
     }
     posterHostVisible.value = false
+    sharePosterBgDataUrl.value = null
+    sharePosterAvatarDataUrl.value = null
     /**
      * 先关 Loading：去掉 body 上 van-toast--unclickable；再用 Blob URL + 原生 img 预览，
      * 避免 showImagePreview(dataUrl) 在部分环境下黑屏、Swiper 中央白竖线等问题。
@@ -501,6 +536,8 @@ async function generateSharePoster() {
     posterResultUrl.value = URL.createObjectURL(blob)
   } catch {
     posterHostVisible.value = false
+    sharePosterBgDataUrl.value = null
+    sharePosterAvatarDataUrl.value = null
     closeToast()
     closePosterResultPreview()
     showFailToast('海报生成失败，请重试')
@@ -934,7 +971,10 @@ function onProfileHeaderClick(e: Event) {
         :mood="post.mood"
         :body-text="posterBodyForShare"
         :date-line="posterDateLine"
-        :bg-image="posterBgImage"
+        :bg-image="sharePosterBgDataUrl ?? posterBgImage"
+        :author-nickname="posterAuthorNickname"
+        :author-avatar-src="sharePosterAvatarDataUrl ?? posterAuthorAvatarNormalized"
+        :author-is-anonymous="!!post.isAnonymous"
         :qr-data-url="posterQrDataUrl"
       />
     </div>
