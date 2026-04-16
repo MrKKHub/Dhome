@@ -398,7 +398,7 @@ function onPostDeleted(id: string) {
     />
 
     <div v-if="loading" class="flex justify-center py-16">
-      <van-loading type="spinner" color="#8B7355" />
+      <van-loading type="spinner" color="var(--text-secondary)" />
     </div>
 
     <template v-else-if="profile">
@@ -474,7 +474,7 @@ function onPostDeleted(id: string) {
                   />
                   <span
                     v-if="userStore.uploadingAvatar"
-                    class="absolute inset-0 flex items-center justify-center rounded-full bg-[#3d3530]/30 text-[11px] font-medium text-white"
+                    class="absolute inset-0 flex items-center justify-center rounded-full bg-warmInk/30 text-[11px] font-medium text-white"
                   >
                     …
                   </span>
@@ -501,14 +501,14 @@ function onPostDeleted(id: string) {
                 {{ profile.bio || '在这个树洞里，抱抱自己。' }}
               </p>
               <div class="user-info-section__stats-row">
-                <span>关注 <b class="tabular-nums text-[#4a3d3d]">{{ followingCountDisplay }}</b></span>
-                <span>被关注 <b class="tabular-nums text-[#4a3d3d]">{{ followerCountDisplay }}</b></span>
+                <span>关注 <b class="tabular-nums text-warmInk">{{ followingCountDisplay }}</b></span>
+                <span>被关注 <b class="tabular-nums text-warmInk">{{ followerCountDisplay }}</b></span>
               </div>
               <div
                 v-if="moodCloud.length"
-                class="mood-stats mood-stats--in-header mt-6 rounded-2xl border border-[#E8DDD4]/70 bg-white/60 px-3 py-3"
+                class="mood-stats mood-stats--in-header mt-6 rounded-2xl border border-soft bg-apricot/50 px-3 py-3 dark:bg-slate-800/50"
               >
-                <p class="mb-2 text-center text-[11px] font-medium tracking-wider text-[#9A8A7E]">
+                <p class="mb-2 text-center text-[11px] font-medium tracking-wider text-warmInk/50">
                   近七日心情
                 </p>
                 <div class="flex flex-wrap justify-center gap-2">
@@ -527,7 +527,7 @@ function onPostDeleted(id: string) {
                 v-if="showFollowBtn"
                 ref="followBtnRef"
                 type="button"
-                class="mt-4 rounded-full border border-[#C4B5A0]/50 bg-white/80 px-5 py-1.5 text-[13px] font-medium text-[#6B5A5A] shadow-sm active:scale-[0.98]"
+                class="mt-4 rounded-full border border-faint bg-surface px-5 py-1.5 text-[13px] font-medium text-warmInk/80 shadow-sm active:scale-[0.98]"
                 :disabled="followLoading"
                 @click="toggleFollow"
               >
@@ -541,7 +541,7 @@ function onPostDeleted(id: string) {
             role="status"
             aria-live="polite"
           >
-            <van-loading type="spinner" color="#faf9f6" size="28px" />
+            <van-loading type="spinner" color="#ffffff" size="28px" />
             <span class="header-banner-uploading__text">上传中…</span>
           </div>
         </div>
@@ -550,9 +550,10 @@ function onPostDeleted(id: string) {
             <van-tabs
               :active="activeTab"
               class="user-detail-tabs"
-              color="#8B7355"
-              title-active-color="#5C4B4B"
-              title-inactive-color="#9A8A7E"
+              background="var(--bg-page)"
+              color="var(--text-secondary)"
+              title-active-color="var(--text-primary)"
+              title-inactive-color="var(--text-secondary)"
               line-width="28px"
               @update:active="activeTab = $event"
             >
@@ -560,7 +561,7 @@ function onPostDeleted(id: string) {
                 <div class="px-3 pt-2">
                   <p
                     v-if="!moodPosts.length"
-                    class="py-12 text-center text-[14px] text-[#9A8A7E]"
+                    class="py-12 text-center text-[14px] text-warmInk/50"
                   >
                     这里还没有心情叶子
                   </p>
@@ -581,7 +582,7 @@ function onPostDeleted(id: string) {
                 <div class="px-3 pt-2">
                   <p
                     v-if="!capsulePosts.length"
-                    class="py-12 text-center text-[14px] text-[#9A8A7E]"
+                    class="py-12 text-center text-[14px] text-warmInk/50"
                   >
                     还没有已开启的胶囊展示给他人
                   </p>
@@ -649,7 +650,7 @@ function onPostDeleted(id: string) {
 <style scoped>
 .user-detail-root {
   min-height: 100vh;
-  background-color: #faf9f6;
+  background-color: var(--bg-page);
   animation: user-detail-fade-in 0.55s ease-out both;
 }
 
@@ -664,14 +665,14 @@ function onPostDeleted(id: string) {
 
 /* 导航栏半透明，避免实色块盖住下方实景顶栏（仅本页） */
 :deep(.user-detail-nav.van-nav-bar) {
-  background: rgba(250, 249, 246, 0.72);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 :deep(.user-detail-nav .van-nav-bar__title),
 :deep(.user-detail-nav .van-icon) {
-  color: #5c4b4b;
+  color: rgb(var(--tw-warm-ink) / 1);
 }
 
 :deep(.van-nav-bar__placeholder) {
@@ -683,7 +684,7 @@ function onPostDeleted(id: string) {
   position: relative;
   min-height: 100vh;
   width: 100%;
-  background-color: #faf9f6;
+  background-color: var(--bg-page);
   /* 拉近与上方 DHome / 木心顶栏之间的空白 */
   margin-top: -18px;
 }
@@ -692,7 +693,7 @@ function onPostDeleted(id: string) {
 .header-banner-container {
   position: relative;
   overflow: visible;
-  background-color: #faf9f6;
+  background-color: var(--bg-page);
   min-height: 280px;
 }
 
@@ -829,11 +830,12 @@ function onPostDeleted(id: string) {
 }
 
 .header-bg-stack--custom .header-bg-mask {
+  /* 底部与正文区同色，深浅主题均走 --bg-page，避免深色下仍「洗」成浅米底 */
   background: linear-gradient(
     to bottom,
     rgba(24, 20, 18, 0.28) 0%,
     rgba(24, 20, 18, 0.38) 55%,
-    rgba(250, 249, 246, 0.82) 100%
+    color-mix(in srgb, var(--bg-page) 82%, transparent) 100%
   );
 }
 
@@ -950,7 +952,7 @@ function onPostDeleted(id: string) {
   filter: blur(2px) saturate(1.06) brightness(1.02);
 }
 
-/* 蒙版极轻：略柔光即可，避免盖死细节 */
+/* 蒙版极轻：略柔光即可，避免盖死细节；底部与页面底色衔接 */
 .header-bg-mask {
   position: absolute;
   top: 0;
@@ -961,13 +963,13 @@ function onPostDeleted(id: string) {
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(250, 249, 246, 0.22) 62%,
-    rgba(250, 249, 246, 0.72) 100%
+    color-mix(in srgb, var(--bg-page) 5%, transparent) 0%,
+    color-mix(in srgb, var(--bg-page) 22%, transparent) 62%,
+    color-mix(in srgb, var(--bg-page) 72%, transparent) 100%
   );
 }
 
-/* 底部羽化：与正文区衔接即可，少遮挡实景 */
+/* 底部羽化：与正文区衔接即可，少遮挡实景；末端与列表容器同色 */
 .header-bottom-feather {
   position: absolute;
   left: 0;
@@ -978,10 +980,10 @@ function onPostDeleted(id: string) {
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(250, 249, 246, 0.08) 55%,
-    rgba(250, 249, 246, 0.55) 88%,
-    #faf9f6 100%
+    transparent 0%,
+    color-mix(in srgb, var(--bg-page) 8%, transparent) 55%,
+    color-mix(in srgb, var(--bg-page) 55%, transparent) 88%,
+    var(--bg-page) 100%
   );
 }
 
@@ -1036,7 +1038,7 @@ function onPostDeleted(id: string) {
   gap: 1.5rem;
   margin-top: 1rem;
   font-size: 13px;
-  color: #5c4b4b;
+  color: var(--text-secondary);
 }
 
 .user-info-section__avatar {
@@ -1057,7 +1059,7 @@ function onPostDeleted(id: string) {
 
 .user-info-section__nickname,
 .user-info-section__bio {
-  color: #4a4a4a;
+  color: var(--text-primary);
 }
 
 .stay-badge {
@@ -1082,9 +1084,23 @@ function onPostDeleted(id: string) {
   z-index: 2;
   margin-top: -14px;
   border-radius: 24px 24px 0 0;
-  background-color: #faf9f6;
+  /* 与全局页面底一致，深色模式不再出现大块浅米底 */
+  background-color: var(--bg-page);
   padding: 1rem 1rem 0.5rem;
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.04);
+}
+
+:global(html.dark) .user-detail-sheet {
+  box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.42);
+}
+
+/* Tab 内容区默认透明即可继承 sheet；显式兜底避免个别 WebKit 下残留白底 */
+:deep(.user-detail-tabs.van-tabs) {
+  background: transparent;
+}
+
+:deep(.user-detail-tabs .van-tabs__content) {
+  background: var(--bg-page);
 }
 
 .mood-stats--in-header {

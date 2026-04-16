@@ -154,7 +154,7 @@ const handleMessageClick = async (msg: NotificationItem) => {
 <template>
   <section class="animate-fade-in space-y-3">
     <div
-      class="flex items-center justify-between rounded-[24px] border border-[#F0E8E0]/80 bg-white/95 px-4 py-3 shadow-warm backdrop-blur-sm"
+      class="flex items-center justify-between rounded-[24px] border border-card bg-surface px-4 py-3 shadow-warm backdrop-blur-sm"
     >
       <div class="flex items-center gap-2">
         <Bell class="h-5 w-5 text-brand" />

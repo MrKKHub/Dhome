@@ -11,7 +11,7 @@ import PostListSkeleton from '@/components/PostListSkeleton.vue'
 import { usePostStore, type PostItem } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 
-const tabs = ['推荐', '关注']
+// const tabs = ['推荐', '关注']
 const activeTab = ref('推荐')
 const activeFilter = ref('全部')
 const activeSort = ref('最新')
@@ -124,15 +124,15 @@ const openPickupDetail = (id: string) => {
 const setFilter = (filter: string) => {
   activeFilter.value = filter
 }
-const onTabChange = (tab: string) => {
-  const el = feedScrollEl.value
-  if (el) {
-    scrollTopCache.value[activeTab.value] = el.scrollTop
-  }
-  activeTab.value = tab
-  postStore.setFeedChannel(tab === '推荐' ? 'recommended' : 'follow')
-  postStore.fetchNextPage()
-}
+// const onTabChange = (tab: string) => {
+//   const el = feedScrollEl.value
+//   if (el) {
+//     scrollTopCache.value[activeTab.value] = el.scrollTop
+//   }
+//   activeTab.value = tab
+//   postStore.setFeedChannel(tab === '推荐' ? 'recommended' : 'follow')
+//   postStore.fetchNextPage()
+// }
 const onLoad = async () => {
   await postStore.fetchNextPage()
 }
@@ -189,14 +189,14 @@ onUnmounted(() => {
     class="animate-fade-in home-feed-root mx-auto w-full max-w-[min(100%,26rem)] px-1 sm:px-0"
   >
     <div class="mb-4 px-1">
-      <h2 class="text-2xl font-bold leading-relaxed text-[#5C4B4B]">情绪树洞</h2>
-      <p class="mt-1 text-[13px] leading-relaxed text-[#8B7B7B]">慢一点，让心情有地方落脚</p>
+      <h2 class="text-2xl font-bold leading-relaxed text-warmInk">情绪树洞</h2>
+      <p class="mt-1 text-[13px] leading-relaxed text-warmInk/55">慢一点，让心情有地方落脚</p>
     </div>
 
     <div class="mb-4 px-1">
       <button
         type="button"
-        class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#E8DDD4]/90 bg-white/88 px-5 py-3 text-[14px] font-medium text-[#6B5A5A] shadow-warm backdrop-blur-sm transition-all duration-200 active:scale-[0.98]"
+        class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-soft bg-surface px-5 py-3 text-[14px] font-medium text-warmInk/80 shadow-warm backdrop-blur-sm transition-all duration-200 active:scale-[0.98]"
         @click="openPickup"
       >
         <Shell class="h-[18px] w-[18px] shrink-0 text-brand" stroke-width="2" />
@@ -205,7 +205,7 @@ onUnmounted(() => {
     </div>
 
     <div
-      class="mb-3 rounded-[28px] border border-[#F0E8E0]/80 bg-white/90 p-3 shadow-warm backdrop-blur-sm"
+      class="mb-3 rounded-[28px] border border-card bg-surface p-3 shadow-warm backdrop-blur-sm"
     >
       <div class="mb-2 flex items-center gap-2 rounded-full bg-apricot/70 px-3 py-2">
         <Search class="h-4 w-4 text-warmInk/40" />
@@ -224,8 +224,8 @@ onUnmounted(() => {
             class="rounded-full px-3 py-1 text-[12px] transition-all duration-200 active:scale-[0.97]"
             :class="
               activeFilter === item
-                ? 'bg-brand/15 font-medium text-[#C45C3E]'
-                : 'bg-[#F5EDE6] text-warmInk/55'
+                ? 'bg-brand/15 font-medium text-brand'
+                : 'bg-surface-muted text-warmInk/55'
             "
             @click="setFilter(item)"
           >
@@ -234,7 +234,7 @@ onUnmounted(() => {
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-1 rounded-full bg-[#F5EDE6] px-3 py-1 text-[12px] text-warmInk/55 transition-all duration-200 active:scale-[0.97]"
+          class="inline-flex items-center gap-1 rounded-full bg-surface-muted px-3 py-1 text-[12px] text-warmInk/55 transition-all duration-200 active:scale-[0.97]"
           @click="activeSort = activeSort === '最新' ? '最热' : '最新'"
         >
           <SlidersHorizontal class="h-3.5 w-3.5" />
@@ -243,6 +243,9 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!--
+      推荐 / 关注切换：暂时隐藏；逻辑仍保留（activeTab、onTabChange、scrollTopCache 等）。
+      恢复展示：取消本注释包裹即可。
     <div class="mb-3 flex rounded-full bg-apricot/80 p-1">
       <button
         v-for="tab in tabs"
@@ -259,6 +262,7 @@ onUnmounted(() => {
         {{ tab }}
       </button>
     </div>
+    -->
 
     <div ref="feedScrollEl" class="home-feed-scroll-area px-1">
       <van-pull-refresh

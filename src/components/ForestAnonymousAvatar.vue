@@ -15,17 +15,16 @@ const Icon = computed(() => resolveForestLucideIcon(props.iconKey))
 
 <template>
   <div
-    class="inline-flex shrink-0 items-center justify-center rounded-full border border-[#C8E6C9]/90 shadow-sm"
+    class="inline-flex shrink-0 items-center justify-center rounded-full border border-emerald-200/90 bg-gradient-to-br from-emerald-50 to-emerald-200 shadow-sm dark:border-emerald-800/50 dark:from-emerald-900/50 dark:to-emerald-800/40"
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      background: 'linear-gradient(145deg, #E8F5E9 0%, #C8E6C9 100%)',
     }"
     aria-hidden="true"
   >
     <component
       :is="Icon"
-      class="text-[#2E7D32]"
+      class="text-emerald-700 dark:text-emerald-300"
       :size="Math.round(size * 0.5)"
       :stroke-width="2"
     />

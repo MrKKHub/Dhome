@@ -9,14 +9,18 @@ export const MOOD_OPTIONS = [
 
 export type PostMood = (typeof MOOD_OPTIONS)[number]
 
-/** 心情标签展示色（暖色低饱和） */
+/** 心情标签：Tailwind 调色 + dark: 变体，避免硬编码 hex */
 export const MOOD_BADGE_CLASS: Record<PostMood, string> = {
-  浮躁: 'bg-[#FFE8DC] text-[#A85A3C]',
-  小确幸: 'bg-[#FFF4E0] text-[#9A7B2C]',
-  emo: 'bg-[#EDE9FF] text-[#5C5299]',
-  平静: 'bg-[#E8F3EE] text-[#3D7565]',
-  期待: 'bg-[#FFF0F5] text-[#A85A7A]',
-  疲惫: 'bg-[#EEEAE6] text-[#6B5E58]',
+  浮躁:
+    'bg-orange-100/95 text-orange-900 dark:bg-orange-950/45 dark:text-orange-100',
+  小确幸:
+    'bg-amber-100/95 text-amber-900 dark:bg-amber-950/45 dark:text-amber-100',
+  emo: 'bg-violet-100/95 text-violet-900 dark:bg-violet-950/45 dark:text-violet-100',
+  平静:
+    'bg-emerald-100/95 text-emerald-900 dark:bg-emerald-950/45 dark:text-emerald-100',
+  期待: 'bg-pink-100/95 text-pink-900 dark:bg-pink-950/45 dark:text-pink-100',
+  疲惫:
+    'bg-stone-200/90 text-stone-800 dark:bg-stone-800/55 dark:text-stone-200',
 }
 
 /** 与发布/卡片一致的心情标签色；未知文案时退回中性色 */
@@ -25,7 +29,7 @@ export function resolveMoodBadgeClass(mood: string): string {
   if (MOOD_OPTIONS.includes(key)) {
     return MOOD_BADGE_CLASS[key]
   }
-  return 'bg-[#F5EDE4]/90 text-[#6B5E58]'
+  return 'bg-apricot/90 text-warmInk/80 dark:bg-slate-700/60 dark:text-warmInk/90'
 }
 
 /** html2canvas 克隆文档里 Tailwind 可能不全，心情标签用内联色保证可见 */
@@ -54,34 +58,44 @@ export const MOOD_CARD_SURFACE_COLOR: Record<PostMood, string> = {
   疲惫: '#F5F3EF',
 }
 
+/** 深色模式下卡片主底色（与浅色同情绪倾向、压暗） */
+export const MOOD_CARD_SURFACE_COLOR_DARK: Record<PostMood, string> = {
+  浮躁: '#2a2220',
+  小确幸: '#2a2820',
+  emo: '#22242e',
+  平静: '#222825',
+  期待: '#2a2225',
+  疲惫: '#252422',
+}
+
 /**
  * 卡片内极淡水彩晕染层（两团模糊色块，模拟棉麻纸上的水彩）
- * 每项为 [右上主晕染 class, 左下辅晕染 class]
+ * 每项为 [右上主晕染 class, 左下辅晕染 class]；深色下略压低透明度
  */
 export const MOOD_WATERCOLOR_LAYERS: Record<PostMood, [string, string]> = {
   浮躁: [
-    'absolute -right-8 -top-6 h-36 w-36 rounded-full bg-gradient-to-bl from-[#FFD4C4]/45 via-[#FFE8DC]/25 to-transparent blur-3xl',
-    'absolute -bottom-4 -left-6 h-28 w-28 rounded-full bg-gradient-to-tr from-[#E8DDD4]/40 to-transparent blur-2xl',
+    'absolute -right-8 -top-6 h-36 w-36 rounded-full bg-gradient-to-bl from-orange-200/45 via-orange-100/25 to-transparent blur-3xl dark:opacity-45',
+    'absolute -bottom-4 -left-6 h-28 w-28 rounded-full bg-gradient-to-tr from-apricot/40 to-transparent blur-2xl dark:opacity-45',
   ],
   小确幸: [
-    'absolute -right-6 top-2 h-40 w-40 rounded-full bg-gradient-to-bl from-[#FFDCC4]/50 via-[#FFF0E0]/30 to-transparent blur-3xl',
-    'absolute bottom-20 -left-8 h-32 w-32 rounded-full bg-gradient-to-tr from-[#FFE8D6]/35 to-transparent blur-3xl',
+    'absolute -right-6 top-2 h-40 w-40 rounded-full bg-gradient-to-bl from-amber-200/50 via-amber-100/30 to-transparent blur-3xl dark:opacity-45',
+    'absolute bottom-20 -left-8 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-100/35 to-transparent blur-3xl dark:opacity-45',
   ],
   emo: [
-    'absolute -right-4 top-8 h-36 w-36 rounded-full bg-gradient-to-bl from-[#DDD8F5]/45 via-[#EDE9FF]/25 to-transparent blur-3xl',
-    'absolute -bottom-2 left-1/4 h-24 w-40 rounded-full bg-gradient-to-t from-[#E8E4F7]/30 to-transparent blur-2xl',
+    'absolute -right-4 top-8 h-36 w-36 rounded-full bg-gradient-to-bl from-violet-200/45 via-violet-100/25 to-transparent blur-3xl dark:opacity-45',
+    'absolute -bottom-2 left-1/4 h-24 w-40 rounded-full bg-gradient-to-t from-violet-100/30 to-transparent blur-2xl dark:opacity-45',
   ],
   平静: [
-    'absolute -right-10 top-0 h-44 w-44 rounded-full bg-gradient-to-bl from-[#C8E8DC]/35 via-[#E8F3EE]/25 to-transparent blur-3xl',
-    'absolute -left-6 bottom-12 h-28 w-28 rounded-full bg-[#D4EBE2]/30 blur-2xl',
+    'absolute -right-10 top-0 h-44 w-44 rounded-full bg-gradient-to-bl from-emerald-200/35 via-emerald-100/25 to-transparent blur-3xl dark:opacity-45',
+    'absolute -left-6 bottom-12 h-28 w-28 rounded-full bg-emerald-200/30 blur-2xl dark:opacity-45',
   ],
   期待: [
-    'absolute -right-8 top-4 h-36 w-36 rounded-full bg-gradient-to-bl from-[#F5D4E0]/40 via-[#FFF0F5]/25 to-transparent blur-3xl',
-    'absolute bottom-16 -left-4 h-24 w-24 rounded-full bg-[#F0D8E0]/30 blur-2xl',
+    'absolute -right-8 top-4 h-36 w-36 rounded-full bg-gradient-to-bl from-pink-200/40 via-pink-100/25 to-transparent blur-3xl dark:opacity-45',
+    'absolute bottom-16 -left-4 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl dark:opacity-45',
   ],
   疲惫: [
-    'absolute -right-6 top-6 h-32 w-32 rounded-full bg-gradient-to-bl from-[#DDD5CC]/40 to-transparent blur-3xl',
-    'absolute -bottom-4 left-8 h-28 w-28 rounded-full bg-[#E5DED6]/35 blur-2xl',
+    'absolute -right-6 top-6 h-32 w-32 rounded-full bg-gradient-to-bl from-stone-300/40 to-transparent blur-3xl dark:opacity-45',
+    'absolute -bottom-4 left-8 h-28 w-28 rounded-full bg-stone-400/35 blur-2xl dark:opacity-45',
   ],
 }
 

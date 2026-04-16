@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { Sparkles } from 'lucide-vue-next'
 import { showToast } from 'vant'
 import PostCard from '@/components/PostCard.vue'
 import type { PostItem } from '@/store/postStore'
@@ -136,14 +137,14 @@ watch(tab, (t) => {
     </div>
 
     <div
-      class="mb-4 flex rounded-2xl bg-apricot/50 p-1 ring-1 ring-[#F0E8E0]/80"
+      class="mb-4 flex rounded-2xl bg-apricot/50 p-1 ring-1 ring-card"
     >
       <button
         type="button"
         class="flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-all duration-200 active:scale-[0.99]"
         :class="
           tab === 'mine'
-            ? 'bg-white text-warmInk shadow-sm'
+            ? 'bg-surface text-warmInk shadow-sm'
             : 'text-warmInk/50'
         "
         @click="tab = 'mine'"
@@ -155,7 +156,7 @@ watch(tab, (t) => {
         class="flex-1 rounded-xl py-2.5 text-[14px] font-medium transition-all duration-200 active:scale-[0.99]"
         :class="
           tab === 'river'
-            ? 'bg-white text-warmInk shadow-sm'
+            ? 'bg-surface text-warmInk shadow-sm'
             : 'text-warmInk/50'
         "
         @click="tab = 'river'"
@@ -170,7 +171,7 @@ watch(tab, (t) => {
       </p>
       <p
         v-else-if="emptyMine"
-        class="rounded-[24px] border border-dashed border-[#E8DDD4] bg-white/60 py-14 text-center text-[14px] text-warmInk/45"
+        class="rounded-[24px] border border-dashed border-soft bg-apricot/40 py-14 text-center text-[14px] text-warmInk/45"
       >
         还没有胶囊，去发布页埋一颗吧～
       </p>
@@ -217,14 +218,24 @@ watch(tab, (t) => {
         <button
           ref="salvageBtnRef"
           type="button"
-          class="salvage-btn relative flex min-h-[52px] min-w-[200px] items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-8 text-[15px] font-semibold text-white shadow-lg transition-transform duration-200 active:scale-[0.97] disabled:opacity-50"
+          class="salvage-btn relative flex min-h-[52px] min-w-[200px] items-center justify-center overflow-hidden rounded-full px-8 text-[15px] font-semibold text-white disabled:pointer-events-none disabled:opacity-50"
           :class="{ 'salvage-btn--ripple': rippleActive }"
           :disabled="salvaging || !userStore.isLoggedIn"
           @click="doSalvage"
         >
-          <span class="relative z-[1]">{{
-            salvaging ? '打捞中…' : '打捞一粒温暖'
-          }}</span>
+          <!-- 流光层：background-position 动画，深色下紫 / 极光绿偏色见下方全局样式 -->
+          <span class="salvage-btn-shimmer pointer-events-none absolute inset-0 rounded-full" aria-hidden="true" />
+          <span
+            class="salvage-btn-label relative z-[2] inline-flex items-center justify-center gap-1.5"
+          >
+            <Sparkles
+              v-if="!salvaging"
+              class="salvage-btn-star h-[17px] w-[17px] shrink-0"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+            <span>{{ salvaging ? '打捞中…' : '打捞此刻的回响' }}</span>
+          </span>
         </button>
       </div>
 
@@ -265,6 +276,7 @@ watch(tab, (t) => {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 3;
   border-radius: 9999px;
   animation: salvage-ripple 0.85s ease-out forwards;
   pointer-events: none;
@@ -277,6 +289,130 @@ watch(tab, (t) => {
   }
   100% {
     box-shadow: 0 0 0 28px rgba(56, 189, 248, 0);
+  }
+}
+</style>
+
+<style>
+/**
+ * 长河「打捞一粒温暖」：毛玻璃 + 流光 + 呼吸光晕（未 scoped，便于 .dark 覆盖）
+ */
+.salvage-btn {
+  border: 1px solid rgb(255 255 255 / 0.38);
+  background: rgb(125 211 252 / 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-shadow: 0 1px 2px rgb(15 23 42 / 0.18);
+  box-shadow:
+    0 4px 18px rgb(14 165 233 / 0.22),
+    0 0 0 0 rgb(99 102 241 / 0.18);
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
+    box-shadow 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
+    filter 0.25s ease;
+  animation: salvage-breathe 3.4s ease-in-out infinite;
+}
+
+.salvage-btn:disabled {
+  animation: none;
+  box-shadow: 0 2px 12px rgb(15 23 42 / 0.08);
+}
+
+.salvage-btn:not(:disabled):active {
+  transform: scale(0.96) translateY(2px);
+}
+
+.salvage-btn-shimmer {
+  z-index: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.42) 42%,
+    rgb(224 242 254 / 0.65) 50%,
+    rgb(255 255 255 / 0.38) 58%,
+    transparent 72%
+  );
+  background-size: 220% 100%;
+  animation: salvage-shimmer 4.2s linear infinite;
+}
+
+.salvage-btn-label {
+  letter-spacing: 2px;
+}
+
+.salvage-btn-star {
+  color: rgb(255 255 255 / 0.95);
+  filter: drop-shadow(0 0 5px rgb(254 249 255 / 0.95))
+    drop-shadow(0 0 10px rgb(125 211 252 / 0.65));
+}
+
+@keyframes salvage-shimmer {
+  0% {
+    background-position: 120% 50%;
+  }
+  100% {
+    background-position: -120% 50%;
+  }
+}
+
+@keyframes salvage-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 20px rgb(14 165 233 / 0.2),
+      0 0 0 0 rgb(99 102 241 / 0.12);
+  }
+  50% {
+    box-shadow:
+      0 8px 32px rgb(14 165 233 / 0.38),
+      0 0 36px rgb(129 140 248 / 0.28);
+  }
+}
+
+/* 深色：底更沉，流光偏深紫 + 极光绿，仍保持「发光体」 */
+.dark .salvage-btn {
+  border-color: rgb(167 139 250 / 0.35);
+  background: rgb(30 41 59 / 0.42);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  box-shadow:
+    0 4px 22px rgb(88 28 135 / 0.35),
+    0 0 0 0 rgb(52 211 153 / 0.12);
+  animation: salvage-breathe-dark 3.4s ease-in-out infinite;
+}
+
+.dark .salvage-btn:disabled {
+  animation: none;
+  box-shadow: 0 2px 14px rgb(0 0 0 / 0.35);
+}
+
+.dark .salvage-btn-shimmer {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgb(167 139 250 / 0.38) 38%,
+    rgb(52 211 153 / 0.42) 50%,
+    rgb(192 132 252 / 0.36) 62%,
+    transparent 78%
+  );
+  background-size: 220% 100%;
+}
+
+.dark .salvage-btn-star {
+  filter: drop-shadow(0 0 6px rgb(167 139 250 / 0.85))
+    drop-shadow(0 0 12px rgb(52 211 153 / 0.55));
+}
+
+@keyframes salvage-breathe-dark {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 22px rgb(88 28 135 / 0.28),
+      0 0 0 0 rgb(52 211 153 / 0.1);
+  }
+  50% {
+    box-shadow:
+      0 10px 38px rgb(109 40 217 / 0.42),
+      0 0 40px rgb(52 211 153 / 0.22);
   }
 }
 </style>

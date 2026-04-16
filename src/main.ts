@@ -7,6 +7,7 @@ import { createPinia } from 'pinia'
 import router from '@/router'
 import { init as initPushService, syncUserLogin } from '@/services/pushService'
 import { useUserStore } from '@/store/userStore'
+import { useThemeStore } from '@/store/themeStore'
 
 /**
  * 条件加载 vConsole：开发环境默认开启；生产包真机调试可设 VITE_ENABLE_VCONSOLE=true 后重新 build。
@@ -26,6 +27,8 @@ const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)
+/** 首屏前同步主题类到 <html>，避免浅色闪一下 */
+useThemeStore().initFromStorage()
 
 const onesignalAppId = import.meta.env.VITE_ONESIGNAL_APP_ID?.trim() ?? ''
 initPushService({

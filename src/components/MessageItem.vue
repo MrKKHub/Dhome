@@ -38,7 +38,7 @@ const onRowKeydown = (e: KeyboardEvent) => {
   <div
     role="button"
     tabindex="0"
-    class="flex cursor-pointer select-none gap-3 rounded-[22px] border border-[#F0E8E0]/70 bg-white/95 p-3 shadow-warm backdrop-blur-sm transition-colors hover:bg-apricot/20 active:bg-apricot/40"
+    class="flex cursor-pointer select-none gap-3 rounded-[22px] border border-card bg-surface p-3 shadow-warm backdrop-blur-sm transition-colors hover:bg-apricot/20 active:bg-apricot/40"
     :class="msg.isRead ? 'opacity-75' : ''"
     @click="onRowClick"
     @keydown="onRowKeydown"
@@ -48,7 +48,7 @@ const onRowKeydown = (e: KeyboardEvent) => {
       <img
         :src="avatarSrc"
         alt=""
-        class="h-11 w-11 rounded-full border border-[#F0E8E0] object-cover transition-opacity active:opacity-80"
+        class="h-11 w-11 rounded-full border border-card object-cover transition-opacity active:opacity-80"
       />
     </div>
     <div class="min-w-0 flex-1">

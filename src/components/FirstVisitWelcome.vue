@@ -79,7 +79,7 @@ const onTransitionEnd = (e: TransitionEvent) => {
         />
         <p
           id="first-visit-title"
-          class="first-visit-breathe text-center text-[17px] font-light leading-[1.85] tracking-[0.02em] text-[#3d3634]"
+          class="first-visit-breathe text-center text-[17px] font-light leading-[1.85] tracking-[0.02em] text-warmInk"
           style="font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif"
         >
           林间有风，树洞有耳。你的每一声心事，都会在这里长成新叶。
@@ -87,7 +87,7 @@ const onTransitionEnd = (e: TransitionEvent) => {
       </div>
       <button
         type="button"
-        class="first-visit-btn relative z-[1] mt-12 rounded-full border border-[#C4B8A8]/60 bg-[#FFFCF8] px-8 py-2.5 text-[14px] font-medium tracking-wide text-warmInk shadow-sm transition-transform duration-150 ease-out will-change-transform active:scale-[0.95]"
+        class="first-visit-btn relative z-[1] mt-12 rounded-full border border-faint bg-surface px-8 py-2.5 text-[14px] font-medium tracking-wide text-warmInk shadow-sm transition-transform duration-150 ease-out will-change-transform active:scale-[0.95]"
         @click="onEnter"
       >
         开启树洞
@@ -112,7 +112,11 @@ const onTransitionEnd = (e: TransitionEvent) => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(to bottom, #faf9f6, #f2f0e9);
+  background: linear-gradient(
+    to bottom,
+    var(--bg-page),
+    rgb(var(--tw-apricot) / 0.55)
+  );
   z-index: 9999;
   isolation: isolate;
 }

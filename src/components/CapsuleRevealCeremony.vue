@@ -219,11 +219,11 @@ onUnmounted(() => {
         style="backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px)"
       >
         <p
-          class="max-w-sm text-[15px] font-medium leading-relaxed text-[#5C4B4B]/95"
+          class="max-w-sm text-[15px] font-medium leading-relaxed text-warmInk/95"
         >
           有些回忆，值得时间去擦拭。手指滑动擦除迷雾，唤醒回忆。
         </p>
-        <p class="mt-5 text-[12px] text-[#8B7355]/85">
+        <p class="mt-5 text-[12px] text-warmInk/60">
           长按 2 秒，或涂抹约一半区域，即可拆封
         </p>
       </div>

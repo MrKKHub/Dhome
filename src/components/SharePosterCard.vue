@@ -73,7 +73,7 @@ defineExpose({
       width: 360px;
       min-height: 520px;
       opacity: 1;
-      background-color: #fdfbf7;
+      background-color: var(--bg-page);
       font-family:
         -apple-system,
         BlinkMacSystemFont,
@@ -85,11 +85,11 @@ defineExpose({
   >
     <!-- 背景：模糊图 + 暖色罩层，失败时仅渐变 -->
     <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#FFF8F3] via-[#F5EDE6] to-[#E8DDD4]"
+      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-apricot via-apricot/80 to-apricot/60"
       aria-hidden="true"
     />
     <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/75 via-white/55 to-[#FDF8F3]/90"
+      class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/75 via-white/55 to-apricot/90"
       aria-hidden="true"
     />
 
@@ -134,7 +134,7 @@ defineExpose({
               height: 44px;
               border-radius: 9999px;
               object-fit: cover;
-              border: 1px solid #e5d9cf;
+              border: 1px solid var(--border-soft);
               flex-shrink: 0;
               display: block;
             "
@@ -149,8 +149,8 @@ defineExpose({
               display: flex;
               align-items: center;
               justify-content: center;
-              border: 1px solid #b8d4b0;
-              background: #e8f5e9;
+              border: 1px solid rgb(34 197 94 / 0.35);
+              background: rgb(220 252 231 / 0.95);
               font-size: 18px;
             "
             aria-hidden="true"
@@ -167,11 +167,11 @@ defineExpose({
               display: flex;
               align-items: center;
               justify-content: center;
-              border: 1px solid #e5d9cf;
-              background: #f5ede6;
+              border: 1px solid var(--border-soft);
+              background: var(--surface-muted);
               font-size: 12px;
               font-weight: 600;
-              color: #9a8a7e;
+              color: var(--text-secondary);
             "
             aria-hidden="true"
           >
@@ -183,7 +183,7 @@ defineExpose({
               flex: 1;
               margin: 0;
               padding-top: 2px;
-              color: #5c4b4b;
+              color: var(--text-primary);
               font-size: 15px;
               font-weight: 600;
               line-height: 1.45;
@@ -211,7 +211,7 @@ defineExpose({
           margin: 0 0 12px;
           white-space: pre-wrap;
           word-break: break-word;
-          color: #4a3e3e;
+          color: var(--text-primary);
           font-size: 17px;
           font-weight: 500;
           line-height: 1.75;
@@ -230,7 +230,7 @@ defineExpose({
           border-radius: 16px;
           width: 100%;
           height: 220px;
-          background: #faf7f5;
+          background: var(--surface-soft);
           line-height: 0;
         "
       >
@@ -259,7 +259,7 @@ defineExpose({
         class="mb-8"
         style="
           margin: 0 0 32px;
-          color: #8b7b7b;
+          color: var(--text-secondary);
           font-size: 12px;
           letter-spacing: 0.04em;
         "
@@ -273,19 +273,18 @@ defineExpose({
           align-items: flex-end;
           justify-content: space-between;
           gap: 16px;
-          border-top: 1px solid rgba(232, 221, 212, 0.85);
+          border-top: 1px solid var(--border-soft);
           padding-top: 20px;
           margin-top: auto;
         "
       >
         <p
-          class="max-w-[180px] text-[11px] font-medium leading-snug text-[#7D6B5C]"
-          style="color: #7d6b5c"
+          class="max-w-[180px] text-[11px] font-medium leading-snug text-warmInk/75"
         >
           木心 · 聆听你的小心事
         </p>
         <div
-          class="shrink-0 overflow-hidden rounded-xl border border-[#E8DDD4]/90 bg-white p-1 shadow-sm"
+          class="shrink-0 overflow-hidden rounded-xl border border-soft bg-surface p-1 shadow-sm"
         >
           <img
             :src="qrDataUrl"

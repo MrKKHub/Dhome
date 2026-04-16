@@ -317,7 +317,7 @@ function onVizMount(el: unknown) {
   >
     <!-- 夜空主色：深靛 → 紫 → 墨蓝 -->
     <div
-      class="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-2xl bg-gradient-to-b from-[#1e2242] via-[#252a52] to-[#15182c]"
+      class="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950"
       aria-hidden="true"
     />
     <!-- 远处淡星云（粉紫 / 青，极低透明度） -->
@@ -390,7 +390,7 @@ function onVizMount(el: unknown) {
       >
         <div class="emotion-flee-wrap" :style="fleeStyle(idx, p.left, p.top)">
           <div
-            class="emotion-nebula-blob rounded-full"
+            class="emotion-nebula-blob nebula-particle rounded-full"
             :style="{
               width: `${p.size}px`,
               height: `${p.size}px`,

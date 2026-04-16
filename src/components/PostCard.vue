@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, useAttrs } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
 import QRCode from 'qrcode'
@@ -24,12 +25,16 @@ import {
 import { CAPSULE_LOCKED_TOAST } from '@/constants/capsule'
 import ForestAnonymousAvatar from '@/components/ForestAnonymousAvatar.vue'
 import {
-  MOOD_BADGE_CLASS,
   MOOD_CARD_SURFACE_COLOR,
+  MOOD_CARD_SURFACE_COLOR_DARK,
+  MOOD_OPTIONS,
   MOOD_WATERCOLOR_LAYERS,
+  resolveMoodBadgeClass,
+  type PostMood,
 } from '@/constants/moods'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
+import { useThemeStore } from '@/store/themeStore'
 import { playLeafConfetti } from '@/utils/leafConfetti'
 import { playHugHeartConfetti } from '@/utils/hugHeartConfetti'
 import PostShareMenu from '@/components/PostShareMenu.vue'
@@ -55,10 +60,15 @@ const attrs = useAttrs()
 
 const postStore = usePostStore()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
+const { isDark } = storeToRefs(themeStore)
 const router = useRouter()
 const leafBtnRef = ref<HTMLButtonElement | null>(null)
 const hugBtnRef = ref<HTMLButtonElement | null>(null)
-/** 发送拥抱前填写匿名与暖心话 */
+/** 暂时关闭「送出一个拥抱」底栏；点击拥抱直接送出（非匿名、无附言），保留涟漪与接口 */
+const HUG_MESSAGE_PANEL_ENABLED = false
+
+/** 发送拥抱前填写匿名与暖心话（仅 HUG_MESSAGE_PANEL_ENABLED 为 true 时使用） */
 const hugPanelOpen = ref(false)
 const hugAnonymous = ref(false)
 const hugMessage = ref('')
@@ -217,11 +227,15 @@ const imageClass = computed(() => {
   return 'grid-cols-3'
 })
 
-const moodClass = computed(() => MOOD_BADGE_CLASS[props.post.mood])
+const moodClass = computed(() => resolveMoodBadgeClass(props.post.mood))
 const watercolorLayers = computed(() => MOOD_WATERCOLOR_LAYERS[props.post.mood])
-const moodSurfaceColor = computed(
-  () => MOOD_CARD_SURFACE_COLOR[props.post.mood],
-)
+const moodSurfaceColor = computed(() => {
+  const key = (props.post.mood ?? '').trim() as PostMood
+  if (isDark.value && MOOD_OPTIONS.includes(key)) {
+    return MOOD_CARD_SURFACE_COLOR_DARK[key]
+  }
+  return MOOD_CARD_SURFACE_COLOR[key] ?? MOOD_CARD_SURFACE_COLOR['平静']
+})
 
 /** 时光勋章：时间戳旁轻量展示作者入住天数（匿名帖不展示） */
 const authorStayLine = computed(() => {
@@ -312,11 +326,15 @@ const triggerHug = async () => {
   }
   hugAnonymous.value = false
   hugMessage.value = ''
-  hugPanelOpen.value = true
+  if (HUG_MESSAGE_PANEL_ENABLED) {
+    hugPanelOpen.value = true
+    return
+  }
+  await performHugSubmit()
 }
 
-/** 确认送出拥抱：心形粒子 + 接口；匿名成功弹窗文案 */
-const confirmHug = async () => {
+/** 确认送出拥抱：心形粒子 + 接口；匿名成功时弹窗文案 */
+async function performHugSubmit() {
   if (props.hugDisabled) {
     return
   }
@@ -342,6 +360,10 @@ const confirmHug = async () => {
       confirmButtonText: '好的',
     })
   }
+}
+
+const confirmHug = async () => {
+  await performHugSubmit()
 }
 
 /** 未解锁胶囊：他人统一提示；作者在自己的胶囊馆点击不打扰 */
@@ -595,7 +617,7 @@ function onProfileHeaderClick(e: Event) {
   <div class="contents">
   <article
     v-bind="attrs"
-    class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-[#E8DDD4]/70"
+    class="card-shell relative mb-6 w-full overflow-hidden rounded-[28px] border border-soft"
     :class="post.isAnonymous ? 'post-card-anonymous-shell' : ''"
     @click="openDetail"
   >
@@ -616,7 +638,7 @@ function onProfileHeaderClick(e: Event) {
     <!-- 极淡叶片 / 云朵线稿感装饰 -->
     <svg
       v-if="showLeafDecor"
-      class="pointer-events-none absolute bottom-6 right-2 h-28 w-28 text-[#8B7355]"
+      class="pointer-events-none absolute bottom-6 right-2 h-28 w-28 text-warmInk/45"
       viewBox="0 0 120 120"
       fill="currentColor"
       aria-hidden="true"
@@ -628,7 +650,7 @@ function onProfileHeaderClick(e: Event) {
     </svg>
     <svg
       v-else
-      class="pointer-events-none absolute right-4 top-24 h-24 w-32 text-[#A09080]"
+      class="pointer-events-none absolute right-4 top-24 h-24 w-32 text-warmInk/40"
       viewBox="0 0 140 80"
       fill="currentColor"
       aria-hidden="true"
@@ -661,17 +683,17 @@ function onProfileHeaderClick(e: Event) {
             v-if="post.isAnonymous"
             :icon-key="post.anonymousAvatarKey"
             :size="40"
-            class="shrink-0 border border-[#C8E6C9]"
+            class="shrink-0 border border-emerald-200/90 dark:border-emerald-800/50"
           />
           <img
             v-else
             :src="post.avatar"
             :alt="post.nickname"
-            class="h-10 w-10 shrink-0 rounded-full border border-[#E5D9CF] object-cover"
+            class="h-10 w-10 shrink-0 rounded-full border border-inkline object-cover"
           />
           <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-1.5">
-              <p class="truncate text-[15px] font-semibold text-[#5C4B4B]">
+              <p class="truncate text-[15px] font-semibold text-warmInk">
                 {{ post.nickname }}
               </p>
               <button
@@ -688,7 +710,7 @@ function onProfileHeaderClick(e: Event) {
                   :class="
                     post.followingAuthor
                       ? 'fill-emerald-600 text-emerald-600'
-                      : 'fill-transparent text-[#9CA3AF]'
+                      : 'fill-transparent text-warmInk/35'
                   "
                   :stroke-width="2"
                 />
@@ -699,7 +721,7 @@ function onProfileHeaderClick(e: Event) {
             >
               <span>{{ post.createdAt }}</span>
               <template v-if="authorStayLine">
-                <span class="text-[#8c8c8c]" aria-hidden="true">·</span>
+                <span class="text-warmInk/40" aria-hidden="true">·</span>
                 <span class="card-stay-days"
                   >{{ authorStayLine.icon }} {{ authorStayLine.days }}d</span
                 >
@@ -726,7 +748,7 @@ function onProfileHeaderClick(e: Event) {
           </span>
           <span
             v-if="post.followsOnly"
-            class="rounded-full bg-lilac/15 px-2 py-0.5 text-[11px] text-[#6B5DB3]"
+            class="rounded-full bg-lilac/15 px-2 py-0.5 text-[11px] text-lilac dark:text-lilac/90"
           >
             仅关注
           </span>
@@ -761,10 +783,10 @@ function onProfileHeaderClick(e: Event) {
               <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
               <Timer class="h-8 w-8 shrink-0" :stroke-width="1.75" />
             </div>
-            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+            <p class="text-[14px] font-semibold leading-snug text-warmInk">
               封存中
             </p>
-            <p class="text-[13px] leading-normal text-[#8B7355]">
+            <p class="text-[13px] leading-normal text-warmInk/60">
               距离开启还有 {{ capsuleDaysLeft }} 天
             </p>
           </template>
@@ -775,10 +797,10 @@ function onProfileHeaderClick(e: Event) {
             >
               <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
             </div>
-            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+            <p class="text-[14px] font-semibold leading-snug text-warmInk">
               胶囊已送达
             </p>
-            <p class="text-[13px] leading-normal text-[#8B7355]">
+            <p class="text-[13px] leading-normal text-warmInk/60">
               在详情页点击「手动拆封」，完成拆封仪式
             </p>
           </template>
@@ -789,25 +811,31 @@ function onProfileHeaderClick(e: Event) {
             >
               <Mail class="h-9 w-9 shrink-0" :stroke-width="1.5" />
             </div>
-            <p class="text-[14px] font-semibold leading-snug text-[#5C4B4B]">
+            <p class="text-[14px] font-semibold leading-snug text-warmInk">
               一颗未拆的胶囊
             </p>
-            <p class="text-[13px] leading-normal text-[#8B7355]">
+            <p class="text-[13px] leading-normal text-warmInk/60">
               作者尚未拆封，内容仍安睡在时光里
             </p>
           </template>
         </div>
         <div v-if="!capsuleSealedDisplay" class="overflow-hidden rounded-2xl">
-          <!-- 标题字段仍由 post.title 承载，仅视觉隐藏以降噪 -->
-          <h3
-            v-if="!UI_HIDE_CARD_TITLE"
-            class="mb-2 text-[17px] font-semibold leading-relaxed text-[#5C4B4B]"
-          >
-            {{ post.title }}
-          </h3>
-          <p class="post-card-body-text text-[15px] leading-relaxed text-[#6B5A5A]">
-            {{ post.content }}
-          </p>
+          <!--
+            圆角 + overflow-hidden 会在左上角形成裁切带；正文贴边时首字笔画易被吃掉。
+            仅给标题/正文加微量内边距，配图区仍顶满，避免影响图片栅格。
+          -->
+          <div class="px-1 pt-1">
+            <!-- 标题字段仍由 post.title 承载，仅视觉隐藏以降噪 -->
+            <h3
+              v-if="!UI_HIDE_CARD_TITLE"
+              class="mb-2 text-[17px] font-semibold leading-relaxed text-warmInk"
+            >
+              {{ post.title }}
+            </h3>
+            <p class="post-card-body-text text-[15px] leading-relaxed text-warmInk/80">
+              {{ post.content }}
+            </p>
+          </div>
 
           <div
             v-if="post.images.length"
@@ -840,15 +868,15 @@ function onProfileHeaderClick(e: Event) {
       </div>
 
       <div
-        class="post-card-actions flex items-center justify-between border-t border-[#E8DDD4]/80"
+        class="post-card-actions flex items-center justify-between border-t border-soft"
         @click.stop
       >
         <div class="relative flex min-w-0 flex-1 justify-start">
           <button
             ref="hugBtnRef"
             type="button"
-            class="ripple-host relative inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-[#7D6B5C] transition-colors duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
-            :class="post.liked ? 'text-[#B76E7A]' : ''"
+            class="ripple-host relative inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-warmInk/75 transition-colors duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
+            :class="post.liked ? 'text-hugText' : ''"
             :disabled="
               hugDisabled ||
               (capsuleSealedDisplay === true && !post.isMine)
@@ -867,11 +895,11 @@ function onProfileHeaderClick(e: Event) {
             />
             <span
               class="relative z-[1] shrink-0 whitespace-nowrap text-[11px]"
-              :class="post.liked ? 'text-[#B76E7A]' : 'text-[#7D6B5C]'"
+              :class="post.liked ? 'text-hugText' : 'text-warmInk/75'"
             >拥抱</span>
             <span
               class="relative z-[1] shrink-0 whitespace-nowrap text-[11px] tabular-nums"
-              :class="post.liked ? 'text-[#C48A92]' : 'text-[#9A8A7E]'"
+              :class="post.liked ? 'text-hugSoft' : 'text-warmInk/50'"
             >{{ post.likes > 0 ? post.likes : '' }}</span>
           </button>
         </div>
@@ -879,7 +907,7 @@ function onProfileHeaderClick(e: Event) {
         <div class="relative flex min-w-0 flex-1 justify-center">
           <button
             type="button"
-            class="ripple-host relative inline-flex max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-[#7D6B5C] transition-colors duration-200 active:scale-[0.98]"
+            class="ripple-host relative inline-flex max-w-full flex-row flex-nowrap items-center gap-1 overflow-hidden rounded-full px-1.5 py-2 text-[12px] text-warmInk/75 transition-colors duration-200 active:scale-[0.98]"
             @click="triggerListen"
           >
             <span
@@ -889,7 +917,7 @@ function onProfileHeaderClick(e: Event) {
             />
             <MessageCircle class="relative z-[1] h-4 w-4 shrink-0" />
             <span
-              class="relative z-[1] shrink-0 whitespace-nowrap text-[11px] text-[#7D6B5C]"
+              class="relative z-[1] shrink-0 whitespace-nowrap text-[11px] text-warmInk/75"
             >倾听</span>
           </button>
         </div>
@@ -897,7 +925,7 @@ function onProfileHeaderClick(e: Event) {
         <button
           type="button"
           class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-1 py-2 text-[12px] transition-all duration-200 active:scale-[0.98] disabled:opacity-45 disabled:pointer-events-none"
-          :class="post.favorited ? 'text-favorite' : 'text-[#7D6B5C]'"
+          :class="post.favorited ? 'text-favorite' : 'text-warmInk/75'"
           :disabled="favoriteDisabled"
           @click="toggleFavorite"
         >
@@ -910,7 +938,7 @@ function onProfileHeaderClick(e: Event) {
 
         <button
           type="button"
-          class="flex min-w-0 flex-1 items-center justify-end gap-1 rounded-full px-1 py-2 text-[12px] text-[#7D6B5C] transition-all duration-200 active:scale-[0.98] disabled:opacity-45"
+          class="flex min-w-0 flex-1 items-center justify-end gap-1 rounded-full px-1 py-2 text-[12px] text-warmInk/75 transition-all duration-200 active:scale-[0.98] disabled:opacity-45"
           :disabled="posterGenerating"
           @click.stop="openShareSheet"
         >
@@ -921,7 +949,7 @@ function onProfileHeaderClick(e: Event) {
 
       <div
         v-if="post.comments > 0"
-        class="mt-2 flex items-center gap-1 text-[11px] text-[#9A8A7E]"
+        class="mt-2 flex items-center gap-1 text-[11px] text-warmInk/50"
       >
         <Sparkles class="h-3 w-3 text-lilac/60" />
         <span>{{ post.comments }} 条温柔回声</span>
@@ -987,6 +1015,7 @@ function onProfileHeaderClick(e: Event) {
   </Teleport>
 
   <van-popup
+      v-if="HUG_MESSAGE_PANEL_ENABLED"
       :show="hugPanelOpen"
       position="bottom"
       round
@@ -994,11 +1023,11 @@ function onProfileHeaderClick(e: Event) {
       teleport="body"
       @update:show="hugPanelOpen = $event"
     >
-      <div class="border-t border-[#F0E8E0]/80 bg-white px-4 pb-6 pt-4">
+      <div class="border-t border-card bg-surface px-4 pb-6 pt-4">
         <p class="mb-3 text-[16px] font-semibold text-warmInk">送出一个拥抱</p>
         <textarea
           v-model="hugMessage"
-          class="mb-3 min-h-20 w-full rounded-2xl border border-[#F0E8E0] bg-apricot/40 px-3 py-2.5 text-[14px] text-warmInk/85 outline-none placeholder:text-warmInk/35"
+          class="mb-3 min-h-20 w-full rounded-2xl border border-card bg-apricot/40 px-3 py-2.5 text-[14px] text-warmInk/85 outline-none placeholder:text-warmInk/35"
           maxlength="280"
           placeholder="选填：一句暖心话（最多 280 字）"
         />
@@ -1006,19 +1035,19 @@ function onProfileHeaderClick(e: Event) {
           class="mb-4 flex cursor-pointer items-center justify-between rounded-xl bg-apricot/50 px-3 py-2.5"
         >
           <span class="text-[14px] text-warmInk/80">匿名拥抱</span>
-          <input v-model="hugAnonymous" type="checkbox" class="h-4 w-4 accent-[#B76E7A]" />
+          <input v-model="hugAnonymous" type="checkbox" class="h-4 w-4 accent-hugText" />
         </label>
         <div class="flex gap-3">
           <button
             type="button"
-            class="flex-1 rounded-full border border-[#E8DDD4] py-3 text-[14px] font-medium text-warmInk/70 active:scale-[0.98]"
+            class="flex-1 rounded-full border border-soft py-3 text-[14px] font-medium text-warmInk/70 active:scale-[0.98]"
             @click="hugPanelOpen = false"
           >
             取消
           </button>
           <button
             type="button"
-            class="flex-1 rounded-full bg-gradient-to-r from-[#E8A0A8] to-[#C48A92] py-3 text-[14px] font-semibold text-white shadow-warm active:scale-[0.98]"
+            class="flex-1 rounded-full bg-gradient-to-r from-hug to-hugSoft py-3 text-[14px] font-semibold text-white shadow-warm active:scale-[0.98]"
             @click="confirmHug"
           >
             发送温暖

@@ -361,7 +361,7 @@ const submitPost = async () => {
     </div>
 
     <div
-      class="space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm transition-[box-shadow,border-color] duration-500"
+      class="space-y-4 rounded-[28px] border border-card bg-surface p-4 shadow-warm backdrop-blur-sm transition-[box-shadow,border-color] duration-500"
       :class="[
         formExiting ? 'publish-form-exit' : '',
         publishAnonymous ? 'forest-veil-glow' : '',
@@ -378,7 +378,7 @@ const submitPost = async () => {
             :class="[
               MOOD_BADGE_CLASS[m],
               selectedMood === m
-                ? 'scale-105 z-[1] shadow-[0_0_16px_rgba(255,140,105,0.42)] ring-2 ring-brand/45 ring-offset-2 ring-offset-[#fdfbf7]'
+                ? 'scale-105 z-[1] shadow-[0_0_16px_rgba(255,140,105,0.42)] ring-2 ring-brand/45 ring-offset-2 ring-offset-warmCream'
                 : 'opacity-80 hover:opacity-100',
             ]"
             @click="pickMood(m)"
@@ -530,7 +530,7 @@ const submitPost = async () => {
 
       <label
         v-if="!UI_SINGLE_IMAGE_PICKER_LOCK || imageSlots.length < 1"
-        class="inline-flex w-full cursor-pointer justify-center rounded-full bg-[#F5EDE6] px-3 py-2.5 text-[14px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
+        class="inline-flex w-full cursor-pointer justify-center rounded-full bg-surface-muted px-3 py-2.5 text-[14px] text-warmInk/65 transition-all duration-200 active:scale-[0.97]"
         :class="submitting ? 'pointer-events-none opacity-60' : ''"
       >
         {{
@@ -621,7 +621,7 @@ const submitPost = async () => {
 
       <button
         type="button"
-        class="flex min-h-11 w-full items-center justify-center rounded-full bg-gradient-to-r from-brand to-[#FFAB90] py-3.5 text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97] disabled:opacity-60"
+        class="flex min-h-11 w-full items-center justify-center rounded-full bg-gradient-to-r from-brand to-brand/85 py-3.5 text-[15px] font-semibold text-white shadow-warm transition-all duration-200 active:scale-[0.97] disabled:opacity-60"
         :disabled="submitting"
         @click="submitPost"
       >

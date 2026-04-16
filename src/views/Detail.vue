@@ -314,7 +314,7 @@ const submitComment = async () => {
         ref="leafFollowBtnRef"
         type="button"
         title="种下思念"
-        class="inline-flex items-center gap-1.5 rounded-full border border-[#F0E8E0] bg-white/90 px-4 py-2 text-[13px] font-medium text-warmInk shadow-warm transition-all active:scale-[0.97] disabled:opacity-50"
+        class="inline-flex items-center gap-1.5 rounded-full border border-card bg-surface px-4 py-2 text-[13px] font-medium text-warmInk shadow-warm transition-all active:scale-[0.97] disabled:opacity-50"
         :disabled="followLoading"
         @click.stop="toggleFollowAuthor"
       >
@@ -339,7 +339,7 @@ const submitComment = async () => {
 
     <div
       v-if="post && !post.capsuleLocked"
-      class="mt-3 space-y-4 rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warmLg backdrop-blur-sm"
+      class="mt-3 space-y-4 rounded-[28px] border border-card bg-surface p-4 shadow-warmLg backdrop-blur-sm"
     >
       <div class="flex items-center gap-2">
         <Heart class="h-4 w-4 fill-hug/35 text-hug" />
@@ -359,7 +359,7 @@ const submitComment = async () => {
         ></textarea>
         <button
           type="button"
-          class="h-11 shrink-0 rounded-full bg-gradient-to-r from-lilac to-[#B8B0FF] px-5 text-[13px] font-semibold text-white shadow-warmLg transition-all duration-200 active:scale-[0.97] disabled:opacity-50 sm:h-auto sm:self-stretch sm:px-4"
+          class="h-11 shrink-0 rounded-full bg-gradient-to-r from-lilac to-lilac/80 px-5 text-[13px] font-semibold text-white shadow-warmLg transition-all duration-200 active:scale-[0.97] disabled:opacity-50 sm:h-auto sm:self-stretch sm:px-4"
           :disabled="commentSubmitting"
           @click="submitComment"
         >
@@ -371,13 +371,13 @@ const submitComment = async () => {
         <div
           v-for="item in comments"
           :key="item.id"
-          class="rounded-2xl border border-[#F0E8E0]/60 bg-apricot/40 p-3"
+          class="rounded-2xl border border-card bg-apricot/40 p-3"
         >
           <div class="mb-2 flex items-center gap-2">
             <img
               :src="item.avatar"
               :alt="item.nickname"
-              class="h-8 w-8 rounded-full border border-[#F0E8E0] object-cover"
+              class="h-8 w-8 rounded-full border border-card object-cover"
             />
             <div>
               <p class="text-[13px] font-semibold text-warmInk">{{ item.nickname }}</p>

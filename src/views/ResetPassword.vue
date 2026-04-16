@@ -188,7 +188,7 @@ async function submit() {
     </div>
 
     <div
-      class="rounded-[32px] border border-[#F5E6DC]/80 bg-white/50 p-4 shadow-warm backdrop-blur-md"
+      class="rounded-[32px] border border-soft bg-surface/80 p-4 shadow-warm backdrop-blur-md"
     >
       <div class="space-y-3">
         <van-field
@@ -213,7 +213,7 @@ async function submit() {
           />
           <button
             type="button"
-            class="mt-1.5 shrink-0 self-start rounded-full bg-white/70 px-3 py-2 text-[11px] font-medium text-[#E07A5F] shadow-inner transition-all active:scale-[0.98] disabled:opacity-50"
+            class="mt-1.5 shrink-0 self-start rounded-full bg-surface px-3 py-2 text-[11px] font-medium text-brand shadow-inner transition-all active:scale-[0.98] disabled:opacity-50"
             :disabled="codeBtnDisabled"
             @click="sendCode"
           >
@@ -241,7 +241,7 @@ async function submit() {
 
       <button
         type="button"
-        class="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#FFAC81] to-[#FF928B] text-[15px] font-semibold text-white shadow-warm transition-all active:scale-[0.98] disabled:opacity-75"
+        class="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-brand to-brand/90 text-[15px] font-semibold text-white shadow-warm transition-all active:scale-[0.98] disabled:opacity-75"
         :disabled="submitting"
         @click="submit"
       >
@@ -253,25 +253,25 @@ async function submit() {
 
 <style scoped>
 .reset-root {
-  background-color: #fdfbf7;
+  background-color: var(--bg-page);
 }
 
 :deep(.reset-field.van-field) {
   padding: 10px 14px;
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--surface-elevated);
   backdrop-filter: blur(8px);
-  box-shadow: inset 0 2px 10px rgba(74, 62, 62, 0.06);
+  box-shadow: inset 0 2px 10px rgb(var(--tw-warm-ink) / 0.06);
 }
 
 :deep(.reset-field .van-field__label) {
   width: 3.25rem;
-  color: rgba(74, 62, 62, 0.55);
+  color: rgb(var(--tw-warm-ink) / 0.55);
   font-size: 13px;
 }
 
 :deep(.reset-field .van-field__control) {
-  color: #4a3e3e;
+  color: rgb(var(--tw-warm-ink) / 1);
   font-size: 15px;
 }
 

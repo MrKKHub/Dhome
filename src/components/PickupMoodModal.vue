@@ -26,7 +26,7 @@ const emit = defineEmits<{
         aria-labelledby="pickup-title"
       >
         <div
-          class="absolute inset-0 bg-[#4a3e3e]/35 backdrop-blur-md"
+          class="absolute inset-0 bg-warmInk/35 backdrop-blur-md"
           @click="emit('close')"
         />
         <div
@@ -36,13 +36,13 @@ const emit = defineEmits<{
           <div class="mb-3 flex items-center justify-between gap-2">
             <h3
               id="pickup-title"
-              class="text-[15px] font-semibold text-[#5C4B4B]"
+              class="text-[15px] font-semibold text-warmInk"
             >
               拾起一片心情
             </h3>
             <button
               type="button"
-              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#8B7B7B] shadow-inner transition-transform duration-200 active:scale-95"
+              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-warmInk/55 shadow-inner transition-transform duration-200 active:scale-95"
               aria-label="关闭"
               @click="emit('close')"
             >
@@ -57,7 +57,7 @@ const emit = defineEmits<{
             <div class="skel-line mx-auto h-4 w-[75%] rounded-full" />
             <div class="skel-line h-4 w-full rounded-full" />
             <div class="skel-line h-4 w-5/6 rounded-full" />
-            <p class="pt-2 text-center text-[12px] text-[#9A8A7E]">
+            <p class="pt-2 text-center text-[12px] text-warmInk/50">
               正在沙滩上寻找一片贝壳…
             </p>
           </div>
@@ -67,13 +67,13 @@ const emit = defineEmits<{
               <img
                 :src="post.avatar"
                 alt=""
-                class="h-10 w-10 rounded-full border border-[#E5D9CF] object-cover"
+                class="h-10 w-10 rounded-full border border-inkline object-cover"
               />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[14px] font-medium text-[#5C4B4B]">
+                <p class="truncate text-[14px] font-medium text-warmInk">
                   {{ post.nickname }}
                 </p>
-                <p class="text-[11px] text-[#9A8A7E]">{{ post.createdAt }}</p>
+                <p class="text-[11px] text-warmInk/50">{{ post.createdAt }}</p>
               </div>
               <span
                 class="shrink-0 rounded-full px-2 py-1 text-[10px] font-medium"
@@ -82,10 +82,10 @@ const emit = defineEmits<{
                 {{ post.mood }}
               </span>
             </div>
-            <h4 class="mb-1.5 text-[16px] font-semibold leading-snug text-[#5C4B4B]">
+            <h4 class="mb-1.5 text-[16px] font-semibold leading-snug text-warmInk">
               {{ post.title }}
             </h4>
-            <p class="mb-3 max-h-40 overflow-y-auto text-[14px] leading-relaxed text-[#6B5A5A]">
+            <p class="mb-3 max-h-40 overflow-y-auto text-[14px] leading-relaxed text-warmInk/80">
               {{ post.content }}
             </p>
             <div
@@ -103,14 +103,14 @@ const emit = defineEmits<{
             <div class="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                class="min-h-11 flex-1 rounded-full bg-[#F5EDE6] py-3 text-[14px] font-medium text-[#7D6B5C] transition-transform duration-200 active:scale-[0.98]"
+                class="min-h-11 flex-1 rounded-full bg-surface-muted py-3 text-[14px] font-medium text-warmInk/75 transition-transform duration-200 active:scale-[0.98]"
                 @click="emit('close')"
               >
                 轻轻合上
               </button>
               <button
                 type="button"
-                class="min-h-11 flex-1 rounded-full bg-gradient-to-r from-brand to-[#FFAB90] py-3 text-[14px] font-semibold text-white shadow-warm transition-transform duration-200 active:scale-[0.98]"
+                class="min-h-11 flex-1 rounded-full bg-gradient-to-r from-brand to-brand/85 py-3 text-[14px] font-semibold text-white shadow-warm transition-transform duration-200 active:scale-[0.98]"
                 @click="emit('openDetail', post.id)"
               >
                 走进这条树洞
@@ -148,9 +148,9 @@ const emit = defineEmits<{
   height: 0.875rem;
   background: linear-gradient(
     90deg,
-    #ebe3db 0%,
-    #f7f2ed 50%,
-    #ebe3db 100%
+    rgb(var(--tw-apricot) / 0.35) 0%,
+    rgb(var(--tw-apricot) / 0.55) 50%,
+    rgb(var(--tw-apricot) / 0.35) 100%
   );
   background-size: 200% 100%;
   animation: skel 1.2s ease-in-out infinite;

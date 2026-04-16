@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{vue,ts,tsx,js,jsx}'],
   theme: {
     extend: {
@@ -7,12 +8,31 @@ export default {
         /** 治愈系主色：落日橘 + 可作辅色治愈紫 */
         brand: '#FF8C69',
         lilac: '#9D94FF',
-        warmInk: '#4A3E3E',
-        warmCream: '#FDFBF7',
-        apricot: '#FFF9F2',
+        /** 由 style.css 中 --tw-* 通道驱动，支持深浅色切换 */
+        warmInk: 'rgb(var(--tw-warm-ink) / <alpha-value>)',
+        warmCream: 'rgb(var(--tw-warm-cream) / <alpha-value>)',
+        apricot: 'rgb(var(--tw-apricot) / <alpha-value>)',
         favorite: '#FFB800',
         liked: '#FF4D4F',
         hug: '#FDA4AF',
+        /** 拥抱态文字（偏玫瑰），深浅下可读 */
+        hugText: '#B76E7A',
+        hugSoft: '#C48A92',
+      },
+      borderColor: {
+        /** 由 style.css 变量驱动，随 html.dark 切换 */
+        card: 'var(--border-card)',
+        soft: 'var(--border-soft)',
+        faint: 'var(--border-faint)',
+        inkline: 'var(--border-inkline)',
+      },
+      backgroundColor: {
+        surface: 'var(--surface-elevated)',
+        'surface-muted': 'var(--surface-muted)',
+        'surface-soft': 'var(--surface-soft)',
+      },
+      ringColor: {
+        card: 'var(--border-card)',
       },
       boxShadow: {
         ambient: '0 8px 30px rgb(15 23 42 / 0.04)',

@@ -342,7 +342,7 @@ const handleLogout = async () => {
   <!-- 整页随主区域滚动；Tab 内列表单独 profile-tab-inner-scroll 限高，避免长列表撑破屏 -->
   <section class="space-y-3 animate-fade-in">
     <div
-      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
+      class="rounded-[28px] border border-card bg-surface p-4 shadow-warm backdrop-blur-sm dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
     >
       <div class="mb-3 flex items-center gap-3">
         <input
@@ -354,7 +354,7 @@ const handleLogout = async () => {
         />
         <button
           type="button"
-          class="relative shrink-0 rounded-full border border-[#F0E8E0] transition-transform duration-200 active:scale-[0.94] disabled:pointer-events-none"
+          class="relative shrink-0 rounded-full border border-card transition-transform duration-200 active:scale-[0.94] disabled:pointer-events-none"
           :disabled="userStore.uploadingAvatar"
           aria-label="更换头像"
           @click="triggerAvatarPick"
@@ -380,16 +380,23 @@ const handleLogout = async () => {
           </p>
         </div>
       </div>
+      <!-- 统计格：浅色用 apricot 底；深色用略深的槽位色，避免与 bg-surface 融成一片 -->
       <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="rounded-xl bg-apricot/60 py-2">
+        <div
+          class="rounded-xl bg-apricot/60 py-2 dark:bg-slate-900/45 dark:ring-1 dark:ring-white/[0.06]"
+        >
           <p class="text-[17px] font-semibold text-warmInk">{{ followingCount }}</p>
           <p class="text-[12px] text-warmInk/40">关注</p>
         </div>
-        <div class="rounded-xl bg-apricot/60 py-2">
+        <div
+          class="rounded-xl bg-apricot/60 py-2 dark:bg-slate-900/45 dark:ring-1 dark:ring-white/[0.06]"
+        >
           <p class="text-[17px] font-semibold text-warmInk">{{ followerCount }}</p>
           <p class="text-[12px] text-warmInk/40">粉丝</p>
         </div>
-        <div class="rounded-xl bg-apricot/60 py-2">
+        <div
+          class="rounded-xl bg-apricot/60 py-2 dark:bg-slate-900/45 dark:ring-1 dark:ring-white/[0.06]"
+        >
           <p class="text-[17px] font-semibold text-warmInk">{{ totalLikes }}</p>
           <p class="text-[12px] text-warmInk/40">拥抱</p>
         </div>
@@ -398,7 +405,7 @@ const handleLogout = async () => {
 
     <div
       v-if="userStore.isLoggedIn"
-      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-4 shadow-warm backdrop-blur-sm"
+      class="rounded-[28px] border border-card bg-surface p-4 shadow-warm backdrop-blur-sm dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
     >
       <h3 class="mb-2 text-[15px] font-semibold text-warmInk">本周心情统计</h3>
       <p class="mb-3 text-[12px] text-warmInk/45">
@@ -435,13 +442,13 @@ const handleLogout = async () => {
     </div>
 
     <div
-      class="rounded-[28px] border border-[#F0E8E0]/80 bg-white/95 p-2 shadow-warm backdrop-blur-sm"
+      class="rounded-[28px] border border-card bg-surface p-2 shadow-warm backdrop-blur-sm dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
     >
       <button
         v-for="item in settings"
         :key="item.label"
         type="button"
-        class="mb-2 flex w-full items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3 text-left transition-all duration-200 last:mb-0 active:scale-[0.97]"
+        class="mb-2 flex w-full items-center justify-between rounded-2xl bg-apricot/50 px-3 py-3 text-left transition-all duration-200 last:mb-0 active:scale-[0.97] dark:bg-slate-800/55"
         @click="onSettingsRow(item)"
       >
         <div class="flex items-center gap-2">
@@ -476,7 +483,7 @@ const handleLogout = async () => {
             v-for="u in PRESET_AVATAR_URLS"
             :key="u"
             type="button"
-            class="flex aspect-square items-center justify-center rounded-2xl border border-[#F0E8E0]/90 bg-apricot/30 p-1 transition-transform active:scale-95 disabled:opacity-50"
+            class="flex aspect-square items-center justify-center rounded-2xl border border-card bg-apricot/30 p-1 transition-transform active:scale-95 disabled:opacity-50 dark:bg-slate-800/40"
             :disabled="presetAvatarSaving"
             @click="onPickPresetAvatar(u)"
           >
@@ -489,7 +496,7 @@ const handleLogout = async () => {
         </div>
         <button
           type="button"
-          class="mt-2 w-full rounded-xl border border-[#E8DDD4] bg-white py-2.5 text-[14px] text-warmInk/80"
+          class="mt-2 w-full rounded-xl border border-soft bg-surface py-2.5 text-[14px] text-warmInk/80"
           :disabled="presetAvatarSaving"
           @click="avatarGalleryOpen = false"
         >
@@ -615,7 +622,7 @@ const handleLogout = async () => {
 
     <button
       type="button"
-      class="inline-flex w-full items-center justify-center gap-1 rounded-full bg-white/95 py-2 text-[14px] text-red-500 shadow-warm transition-all duration-200 active:scale-[0.97]"
+      class="inline-flex w-full items-center justify-center gap-1 rounded-full border border-card bg-surface py-2 text-[14px] text-red-500 shadow-warm transition-all duration-200 active:scale-[0.97] dark:shadow-[0_8px_28px_rgba(0,0,0,0.3)]"
       @click="handleLogout"
     >
       <LogOut class="h-4 w-4" />

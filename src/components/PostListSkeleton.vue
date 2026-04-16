@@ -3,7 +3,7 @@
     <div
       v-for="i in count"
       :key="i"
-      class="skel-card overflow-hidden rounded-[28px] border border-[#EDE5DC]/90 bg-white/40 p-4 shadow-sm"
+      class="skel-card overflow-hidden rounded-[28px] border border-card bg-surface/50 p-4 shadow-sm"
     >
       <div class="mb-3 flex items-start gap-3">
         <div class="skel-shimmer h-10 w-10 shrink-0 rounded-full" />
@@ -21,7 +21,7 @@
         <div class="skel-shimmer h-24 w-full rounded-2xl" />
         <div class="skel-shimmer h-24 w-full rounded-2xl" />
       </div>
-      <div class="flex justify-between border-t border-[#EDE5DC]/60 pt-3">
+      <div class="flex justify-between border-t border-faint pt-3">
         <div class="skel-shimmer h-8 w-16 rounded-full" />
         <div class="skel-shimmer h-8 w-14 rounded-full" />
         <div class="skel-shimmer h-8 w-14 rounded-full" />
@@ -59,5 +59,13 @@ withDefaults(
   100% {
     background-position: -100% 0;
   }
+}
+</style>
+
+<style>
+/* 深色模式骨架条：与页面冷色底协调 */
+.dark .post-skel-root .skel-shimmer {
+  background: linear-gradient(90deg, #334155 0%, #475569 45%, #334155 90%);
+  background-size: 200% 100%;
 }
 </style>

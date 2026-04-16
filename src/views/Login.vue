@@ -169,10 +169,10 @@ onUnmounted(() => {
         class="bubble absolute left-[6%] top-[18%] h-28 w-28 rounded-full bg-white/35 blur-2xl"
       />
       <div
-        class="bubble-delay absolute right-[4%] top-[32%] h-36 w-36 rounded-full bg-[#FFE8DC]/50 blur-3xl"
+        class="bubble-delay absolute right-[4%] top-[32%] h-36 w-36 rounded-full bg-brand/25 blur-3xl"
       />
       <div
-        class="bubble-slow absolute bottom-[28%] left-[20%] h-24 w-24 rounded-full bg-[#E8E0FF]/40 blur-2xl"
+        class="bubble-slow absolute bottom-[28%] left-[20%] h-24 w-24 rounded-full bg-lilac/25 blur-2xl"
       />
     </div>
 
@@ -226,15 +226,15 @@ onUnmounted(() => {
     </div>
 
     <div
-      class="rounded-[32px] border border-[#F5E6DC]/80 bg-white/50 p-4 shadow-[0_10px_40px_-10px_rgba(255,140,105,0.2)] backdrop-blur-md"
+      class="rounded-[32px] border border-soft bg-surface/80 p-4 shadow-[0_10px_40px_-10px_rgba(255,140,105,0.2)] backdrop-blur-md"
     >
-      <div class="mb-4 flex rounded-full bg-[#FFF5EE]/90 p-1">
+      <div class="mb-4 flex rounded-full bg-apricot/60 p-1">
         <button
           type="button"
           class="jelly-tab flex-1 rounded-full py-2.5 text-[13px] transition-all duration-200 active:scale-[0.98]"
           :class="
             activeTab === 'login'
-              ? 'bg-white font-semibold text-warmInk shadow-sm'
+              ? 'bg-surface font-semibold text-warmInk shadow-sm'
               : 'text-warmInk/45'
           "
           @click="activeTab = 'login'"
@@ -246,7 +246,7 @@ onUnmounted(() => {
           class="jelly-tab flex-1 rounded-full py-2.5 text-[13px] transition-all duration-200 active:scale-[0.98]"
           :class="
             activeTab === 'register'
-              ? 'bg-white font-semibold text-warmInk shadow-sm'
+              ? 'bg-surface font-semibold text-warmInk shadow-sm'
               : 'text-warmInk/45'
           "
           @click="activeTab = 'register'"
@@ -265,17 +265,17 @@ onUnmounted(() => {
             type="email"
             autocomplete="email"
             class="auth-field rounded-2xl"
-            :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+            :class="errorTip ? 'shake ring-1 ring-liked/25' : ''"
           />
 
           <template v-if="activeTab === 'login'">
-            <div class="flex rounded-full bg-[#FFF5EE]/90 p-1">
+            <div class="flex rounded-full bg-apricot/60 p-1">
               <button
                 type="button"
                 class="flex-1 rounded-full py-2 text-[12px] transition-all duration-200 active:scale-[0.98]"
                 :class="
                   loginMethod === 'password'
-                    ? 'bg-white font-semibold text-warmInk shadow-sm'
+                    ? 'bg-surface font-semibold text-warmInk shadow-sm'
                     : 'text-warmInk/45'
                 "
                 @click="loginMethod = 'password'"
@@ -287,7 +287,7 @@ onUnmounted(() => {
                 class="flex-1 rounded-full py-2 text-[12px] transition-all duration-200 active:scale-[0.98]"
                 :class="
                   loginMethod === 'code'
-                    ? 'bg-white font-semibold text-warmInk shadow-sm'
+                    ? 'bg-surface font-semibold text-warmInk shadow-sm'
                     : 'text-warmInk/45'
                 "
                 @click="loginMethod = 'code'"
@@ -303,7 +303,7 @@ onUnmounted(() => {
               placeholder="至少 6 位，含字母与数字"
               class="auth-field rounded-2xl"
               autocomplete="current-password"
-              :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+              :class="errorTip ? 'shake ring-1 ring-liked/25' : ''"
               @focus="onPasswordFocus"
               @blur="onPasswordBlur"
             />
@@ -316,11 +316,11 @@ onUnmounted(() => {
                   label="验证码"
                   placeholder="验证码"
                   class="auth-field flex-1 rounded-2xl"
-                  :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+                  :class="errorTip ? 'shake ring-1 ring-liked/25' : ''"
                 />
                 <button
                   type="button"
-                  class="mt-1.5 shrink-0 self-start rounded-full bg-white/70 px-3 py-2 text-[11px] font-medium text-[#E07A5F] shadow-inner transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  class="mt-1.5 shrink-0 self-start rounded-full bg-surface px-3 py-2 text-[11px] font-medium text-brand shadow-inner transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                   :disabled="codeSending"
                   @click="mockSendCode"
                 >
@@ -337,7 +337,7 @@ onUnmounted(() => {
               placeholder="树洞里怎么称呼你"
               maxlength="32"
               class="auth-field rounded-2xl"
-              :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+              :class="errorTip ? 'shake ring-1 ring-liked/25' : ''"
             />
             <van-field
               v-model="password"
@@ -346,7 +346,7 @@ onUnmounted(() => {
               placeholder="至少 6 位，含字母与数字"
               class="auth-field rounded-2xl"
               autocomplete="new-password"
-              :class="errorTip ? 'shake ring-1 ring-[#FBC7C0]/80' : ''"
+              :class="errorTip ? 'shake ring-1 ring-liked/25' : ''"
               @focus="onPasswordFocus"
               @blur="onPasswordBlur"
             />
@@ -356,7 +356,7 @@ onUnmounted(() => {
 
       <button
         type="button"
-        class="relative mt-6 flex h-12 w-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-[#FFAC81] to-[#FF928B] text-[15px] font-semibold text-white shadow-[0_10px_40px_-10px_rgba(255,140,105,0.35)] transition-all duration-200 active:scale-[0.98] disabled:opacity-75"
+        class="relative mt-6 flex h-12 w-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-brand to-brand/90 text-[15px] font-semibold text-white shadow-[0_10px_40px_-10px_rgba(255,140,105,0.35)] transition-all duration-200 active:scale-[0.98] disabled:opacity-75"
         :disabled="isLoading"
         @click="submitAuth"
       >
@@ -379,7 +379,7 @@ onUnmounted(() => {
       >
         <button
           type="button"
-          class="text-[#E07A5F]/90 underline decoration-[#E07A5F]/35 underline-offset-2 transition-colors active:opacity-80"
+          class="text-brand/90 underline decoration-brand/35 underline-offset-2 transition-colors active:opacity-80"
           @click="router.push('/reset-password')"
         >
           忘记密码？
@@ -395,11 +395,16 @@ onUnmounted(() => {
 }
 
 .auth-root {
-  background-color: #fdfbf7;
+  background-color: var(--bg-page);
 }
 
 .auth-breath {
-  background: linear-gradient(145deg, #fdfbf7 0%, #fff0e0 45%, #fdfbf7 90%);
+  background: linear-gradient(
+    145deg,
+    var(--bg-page) 0%,
+    rgb(var(--tw-apricot) / 0.55) 45%,
+    var(--bg-page) 90%
+  );
   background-size: 220% 220%;
   animation: breath-sky 10s ease-in-out infinite alternate;
 }
@@ -506,19 +511,19 @@ onUnmounted(() => {
 :deep(.auth-field.van-field) {
   padding: 10px 14px;
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--surface-elevated);
   backdrop-filter: blur(8px);
-  box-shadow: inset 0 2px 10px rgba(74, 62, 62, 0.06);
+  box-shadow: inset 0 2px 10px rgb(var(--tw-warm-ink) / 0.06);
 }
 
 :deep(.auth-field .van-field__label) {
   width: 3.25rem;
-  color: rgba(74, 62, 62, 0.55);
+  color: rgb(var(--tw-warm-ink) / 0.55);
   font-size: 13px;
 }
 
 :deep(.auth-field .van-field__control) {
-  color: #4a3e3e;
+  color: rgb(var(--tw-warm-ink) / 1);
   font-size: 15px;
 }
 

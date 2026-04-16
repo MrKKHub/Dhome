@@ -6,18 +6,24 @@ import {
   Bell,
   Home,
   Hourglass,
+  Moon,
   Plus,
   Sparkles,
+  Sun,
   User,
 } from 'lucide-vue-next'
+import { storeToRefs } from 'pinia'
 import { useUserStore } from '@/store/userStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useThemeStore } from '@/store/themeStore'
 import FirstVisitWelcome from '@/components/FirstVisitWelcome.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
+const themeStore = useThemeStore()
+const { isDark: isDarkTheme } = storeToRefs(themeStore)
 
 const isDetailRoute = computed(() => route.path.startsWith('/detail'))
 const hideShellOnAuth = computed(() => route.path === '/login')
@@ -96,6 +102,13 @@ const goBack = () => {
     router.push('/')
   }
 }
+
+const onToggleTheme = () => {
+  themeStore.toggleDarkMode()
+}
+
+/** 暂时隐藏顶栏标题左侧装饰图标；恢复展示时改为 true */
+const showHeaderTitleLeadIcon = false
 </script>
 
 <template>
@@ -106,41 +119,58 @@ const goBack = () => {
     <!-- 顶栏复位：与安全区对齐，DHome / 铃铛回到舒适的状态栏区域 -->
     <header
       v-if="!hideShellOnAuth"
-      class="fixed inset-x-0 top-0 z-30 w-full border-b border-[#F0E8E0]/70 bg-white/75 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-xl"
+      class="app-shell-header fixed inset-x-0 top-0 z-30 w-full border-b px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-xl"
     >
       <div class="relative flex min-h-[28px] items-center justify-center">
         <button
           v-if="isDetailRoute"
           type="button"
-          class="absolute left-0 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-full bg-white/90 px-3 py-2 text-[12px] text-warmInk/60 shadow-warm backdrop-blur-md transition-all duration-200 active:scale-[0.97]"
+          class="absolute left-0 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-full px-3 py-2 text-[12px] text-warmInk/60 shadow-warm backdrop-blur-md transition-all duration-200 active:scale-[0.97] app-shell-pill"
           @click="goBack"
         >
           <ArrowLeft class="h-4 w-4" />
           返回
         </button>
         <div class="flex items-center gap-1.5">
-          <Sparkles class="h-4 w-4 text-brand" />
+          <Sparkles
+            v-if="showHeaderTitleLeadIcon"
+            class="h-4 w-4 text-brand"
+          />
           <h1 class="text-center text-[17px] font-semibold text-warmInk">
             {{ headerTitle }}
           </h1>
         </div>
-        <button
-          v-if="showHeaderBell"
-          type="button"
-          class="absolute right-0 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-full p-2 text-warmInk/55 transition-colors active:scale-[0.95] active:text-brand"
-          aria-label="消息通知"
-          @click="goNotifications"
+        <!-- 深浅色切换在铃铛左侧；未登录时仅显示月亮/太阳 -->
+        <div
+          class="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-0.5"
         >
-          <span class="relative inline-flex">
-            <Bell class="h-5 w-5" />
-            <span
-              v-if="notificationStore.unreadCount > 0"
-              class="absolute -right-0.5 -top-0.5 min-h-[16px] min-w-[16px] rounded-full bg-[#E85D5D] px-[5px] text-center text-[10px] font-bold leading-4 text-white"
-            >
-              {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-warmInk/60 transition-all duration-200 hover:scale-110 active:scale-95 active:text-brand"
+            :aria-label="isDarkTheme ? '切换为浅色模式' : '切换为深色模式'"
+            @click="onToggleTheme"
+          >
+            <Moon v-if="!isDarkTheme" class="h-5 w-5" stroke-width="2" />
+            <Sun v-else class="h-5 w-5" stroke-width="2" />
+          </button>
+          <button
+            v-if="showHeaderBell"
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-warmInk/55 transition-all duration-200 hover:scale-110 active:scale-95 active:text-brand"
+            aria-label="消息通知"
+            @click="goNotifications"
+          >
+            <span class="relative inline-flex">
+              <Bell class="h-5 w-5" />
+              <span
+                v-if="notificationStore.unreadCount > 0"
+                class="absolute -right-0.5 -top-0.5 min-h-[16px] min-w-[16px] rounded-full bg-liked px-[5px] text-center text-[10px] font-bold leading-4 text-white"
+              >
+                {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -161,7 +191,7 @@ const goBack = () => {
 
     <footer
       v-if="!hideShellOnAuth"
-      class="fixed inset-x-0 bottom-0 z-20 w-full border-t border-[#F0E8E0]/70 bg-white/75 px-2 pb-2 pt-1 backdrop-blur-xl"
+      class="app-shell-footer fixed inset-x-0 bottom-0 z-20 w-full border-t px-2 pb-2 pt-1 backdrop-blur-xl"
     >
       <nav class="grid grid-cols-4 items-end gap-1">
         <button
@@ -181,7 +211,7 @@ const goBack = () => {
         <div class="relative flex h-10 justify-center">
           <button
             type="button"
-            class="absolute -top-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand via-[#FF9F7A] to-lilac text-white shadow-warm animate-breathe transition-transform duration-200 active:scale-[0.94]"
+            class="absolute -top-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand via-brand/90 to-lilac text-white shadow-warm animate-breathe transition-transform duration-200 active:scale-[0.94]"
             aria-label="发布树洞"
             @click="goPublish"
           >
