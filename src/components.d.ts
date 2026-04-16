@@ -21,6 +21,7 @@ declare module 'vue' {
     PostCard: typeof import('./components/PostCard.vue')['default']
     PostListSkeleton: typeof import('./components/PostListSkeleton.vue')['default']
     PostShareMenu: typeof import('./components/PostShareMenu.vue')['default']
+    PublishResonanceFeedback: typeof import('./components/PublishResonanceFeedback.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SharePosterCard: typeof import('./components/SharePosterCard.vue')['default']

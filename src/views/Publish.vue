@@ -12,6 +12,7 @@ import request from '@/api/request'
 import { uploadPostImages } from '@/api/upload'
 import { MOOD_BADGE_CLASS, MOOD_OPTIONS } from '@/constants/moods'
 import type { PostMood } from '@/constants/moods'
+import PublishResonanceFeedback from '@/components/PublishResonanceFeedback.vue'
 import { usePostStore } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
 import { playGoldenCapsuleConfetti } from '@/utils/goldenConfetti'
@@ -37,6 +38,17 @@ const selectedMood = ref<PostMood | ''>('')
 const imageSlots = ref<ImageSlot[]>([])
 const submitting = ref(false)
 const formExiting = ref(false)
+/** 发布成功后的共鸣反馈（独立组件，不改动首页样式） */
+const resonanceFeedbackOpen = ref(false)
+const resonanceCount = ref(0)
+const resonanceMoodTag = ref('')
+
+function onResonanceVisibility(open: boolean) {
+  resonanceFeedbackOpen.value = open
+  if (!open) {
+    router.push('/')
+  }
+}
 /** 森林匿名：勾选后表单泛绿色荧光，展示预览昵称 */
 const publishAnonymous = ref(false)
 const forestPreviewName = ref('')
@@ -305,7 +317,7 @@ const submitPost = async () => {
     }
 
     const buriedCapsule = isCapsule.value
-    await store.publishPost({
+    const resonanceMeta = await store.publishPost({
       title: resolvedPublishTitle(),
       content: content.value.trim(),
       images: urls,
@@ -331,11 +343,18 @@ const submitPost = async () => {
     await new Promise<void>((r) => setTimeout(r, 560))
     resetForm()
     formExiting.value = false
-    showSuccessToast({
-      message: '你的心事已轻轻落入树洞～',
-      duration: 2200,
-    })
-    router.push('/')
+    /** 近 1 小时无同心情他人帖时不展示共鸣底栏，沿用原成功 Toast + 回首页 */
+    if (resonanceMeta.resonanceCount > 0) {
+      resonanceCount.value = resonanceMeta.resonanceCount
+      resonanceMoodTag.value = resonanceMeta.moodTag
+      resonanceFeedbackOpen.value = true
+    } else {
+      showSuccessToast({
+        message: '你的心事已轻轻落入树洞～',
+        duration: 2200,
+      })
+      router.push('/')
+    }
   } catch (e) {
     if (loader) {
       closeToast()
@@ -354,7 +373,14 @@ const submitPost = async () => {
 </script>
 
 <template>
-  <section class="animate-fade-in">
+  <div class="publish-page-root">
+    <PublishResonanceFeedback
+      :model-value="resonanceFeedbackOpen"
+      :resonance-count="resonanceCount"
+      :mood-tag="resonanceMoodTag"
+      @update:model-value="onResonanceVisibility"
+    />
+    <section class="animate-fade-in">
     <div class="mb-4">
       <h2 class="text-2xl font-bold text-warmInk">写进树洞</h2>
       <p class="mt-1 text-[13px] text-warmInk/45">这里没有对错，只有被听见的温柔</p>
@@ -629,6 +655,7 @@ const submitPost = async () => {
       </button>
     </div>
   </section>
+  </div>
 </template>
 
 <style scoped>

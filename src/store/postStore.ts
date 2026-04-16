@@ -13,6 +13,12 @@ import {
 
 export type { PostMood } from '@/constants/moods'
 
+/** POST /posts 成功后供发布页「共鸣时刻」展示的元信息 */
+export type PublishResonanceMeta = {
+  resonanceCount: number
+  moodTag: string
+}
+
 /** 长河打捞：统一解析 Nest 响应里的 message，供 Toast 展示 */
 function parseNestMessage(data: unknown): string | undefined {
   if (data == null || typeof data !== 'object') {
@@ -177,6 +183,8 @@ interface PostApiRow {
   posterSourceContent?: string
   posterSourceImages?: unknown
   authorRegisteredAt?: string
+  /** POST /posts 创建成功时附带：近 1 小时同心情他人帖数量 */
+  resonanceCount?: number
   author?: {
     id?: string | number
     nickname?: string
@@ -452,7 +460,9 @@ export const usePostStore = defineStore('post', () => {
   /**
    * POST /posts：创建心情，并把返回（或本地拼装）插入列表头部
    */
-  const addPost = async (data: PublishPayload) => {
+  const addPost = async (
+    data: PublishPayload,
+  ): Promise<PublishResonanceMeta> => {
     const remoteImages = data.images.filter(
       (u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim()),
     )
@@ -484,6 +494,15 @@ export const usePostStore = defineStore('post', () => {
       throw new Error('发布接口未返回有效帖子 id')
     }
     posts.value.unshift(item)
+    const rc = row.resonanceCount
+    const resonanceCount =
+      typeof rc === 'number' && Number.isFinite(rc) && rc >= 0
+        ? Math.floor(rc)
+        : 0
+    const moodTag =
+      String(row.moodTag ?? row.mood ?? data.mood ?? '')
+        .trim() || String(data.mood)
+    return { resonanceCount, moodTag }
   }
 
   const toggleLike = async (
@@ -592,11 +611,14 @@ export const usePostStore = defineStore('post', () => {
     }
   }
 
-  const publishPost = async (payload: PublishPayload) => {
-    await addPost(payload)
+  const publishPost = async (
+    payload: PublishPayload,
+  ): Promise<PublishResonanceMeta> => {
+    const meta = await addPost(payload)
     if (feedChannel.value === 'recommended') {
       finished.value = false
     }
+    return meta
   }
 
   const getPostById = (id: string) =>
