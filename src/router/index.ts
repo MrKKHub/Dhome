@@ -34,6 +34,12 @@ const router = createRouter({
       name: 'profile',
       component: () => import('@/views/Profile.vue'),
     },
+    /** 心情月报：独立 H5 式页面，与「我的」解耦 */
+    {
+      path: '/report/:month',
+      name: 'emotional-report',
+      component: () => import('@/views/EmotionalReportView.vue'),
+    },
     {
       path: '/user/:id',
       name: 'user-detail',
@@ -77,6 +83,12 @@ router.beforeEach((to) => {
     }
   }
   if (to.path === '/notifications' && !userStore.isLoggedIn) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath },
+    }
+  }
+  if (to.path.startsWith('/report/') && !userStore.isLoggedIn) {
     return {
       path: '/login',
       query: { redirect: to.fullPath },

@@ -24,6 +24,7 @@ import { PRESET_AVATAR_URLS } from '@/config/avatar-gallery'
 import { resolveAvatarUrl } from '@/utils/resolveAvatarUrl'
 import { resolveMoodBadgeClass } from '@/constants/moods'
 import EmotionNebulaWeather from '@/components/EmotionNebulaWeather.vue'
+import MonthlyReport from '@/components/MonthlyReport.vue'
 
 // type CenterTab = '我的发布' | '我的收藏' | '草稿箱'
 
@@ -35,6 +36,24 @@ import EmotionNebulaWeather from '@/components/EmotionNebulaWeather.vue'
 // }
 
 const router = useRouter()
+
+/** 心情月报路由参数：当前自然月 YYYY-MM */
+const moodReportMonthKey = computed(() => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}`
+})
+
+/** 全屏月报模态（不走路由，避免底栏露出） */
+const monthlyReportOpen = ref(false)
+
+function openMonthlyReportModal() {
+  if (new Date().getDate() < 15) {
+    showToast('每月 15 日起可查看心情月报哦～')
+    return
+  }
+  monthlyReportOpen.value = true
+}
 const store = usePostStore()
 // const { huggingPostId, favoritingPostId } = storeToRefs(store)
 const userStore = useUserStore()
@@ -339,6 +358,11 @@ const handleLogout = async () => {
 </script>
 
 <template>
+  <MonthlyReport
+    v-model="monthlyReportOpen"
+    :month="moodReportMonthKey"
+    :embedded="true"
+  />
   <!-- 整页随主区域滚动；Tab 内列表单独 profile-tab-inner-scroll 限高，避免长列表撑破屏 -->
   <section class="space-y-3 animate-fade-in">
     <div
@@ -407,7 +431,18 @@ const handleLogout = async () => {
       v-if="userStore.isLoggedIn"
       class="rounded-[28px] border border-card bg-surface p-4 shadow-warm backdrop-blur-sm dark:shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
     >
-      <h3 class="mb-2 text-[15px] font-semibold text-warmInk">本周心情统计</h3>
+      <div class="mb-2 flex items-start justify-between gap-2">
+        <h3 class="text-[15px] font-semibold leading-snug text-warmInk">
+          本周心情统计
+        </h3>
+        <button
+          type="button"
+          class="shrink-0 pt-0.5 text-[12px] font-medium text-brand underline-offset-2 hover:underline"
+          @click="openMonthlyReportModal"
+        >
+          心情月报
+        </button>
+      </div>
       <p class="mb-3 text-[12px] text-warmInk/45">
         近 7 天你共记录了 {{ postsLast7DaysCount }} 条心情。
       </p>

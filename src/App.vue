@@ -38,7 +38,7 @@ const headerTitle = computed(() => {
   if (route.path === '/capsules') {
     return '时光胶囊'
   }
-  return 'DHome'
+  return 'DTree'
 })
 
 const showHeaderBell = computed(
@@ -116,7 +116,7 @@ const showHeaderTitleLeadIcon = false
     <!-- 首次访问欢迎层：全屏遮罩，写入 muxin_first_timer 后不再出现 -->
     <FirstVisitWelcome />
     <div class="relative min-h-dvh bg-warmCream">
-    <!-- 顶栏复位：与安全区对齐，DHome / 铃铛回到舒适的状态栏区域 -->
+    <!-- 顶栏复位：与安全区对齐，DTree / 铃铛回到舒适的状态栏区域 -->
     <header
       v-if="!hideShellOnAuth"
       class="app-shell-header fixed inset-x-0 top-0 z-30 w-full border-b px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-xl"

@@ -685,7 +685,7 @@ function onPostDeleted(id: string) {
   min-height: 100vh;
   width: 100%;
   background-color: var(--bg-page);
-  /* 拉近与上方 DHome / 木心顶栏之间的空白 */
+  /* 拉近与上方 DTree / 木心顶栏之间的空白 */
   margin-top: -18px;
 }
 

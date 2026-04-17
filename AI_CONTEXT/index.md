@@ -2,7 +2,7 @@
  * @Author: huashikai huashikai@huitongjt.com
  * @Date: 2026-03-31 14:31:41
  * @LastEditors: huashikai huashikai@huitongjt.com
- * @LastEditTime: 2026-04-01 13:49:12
+ * @LastEditTime: 2026-04-16 18:39:36
  * @FilePath: /dhome/README.md
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
@@ -104,7 +104,7 @@ pnpm-workspace.yaml (如果需要): 一般单体项目不需要，但请确保�
 
 
 项目方向调整:
-# 🌿 项目定义：DHome - 治愈系情绪树洞
+# 🌿 项目定义：DTree - 治愈系情绪树洞
 
 ### 1. 核心定位
 一个专为抒发小情绪设计的 H5 社交平台。它不是信息竞争的广场，而是一个安全、温馨、允许脆弱的匿名/半匿名树洞。

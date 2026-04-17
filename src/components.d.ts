@@ -17,6 +17,7 @@ declare module 'vue' {
     ForestAnonymousAvatar: typeof import('./components/ForestAnonymousAvatar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     MessageItem: typeof import('./components/MessageItem.vue')['default']
+    MonthlyReport: typeof import('./components/MonthlyReport.vue')['default']
     PickupMoodModal: typeof import('./components/PickupMoodModal.vue')['default']
     PostCard: typeof import('./components/PostCard.vue')['default']
     PostListSkeleton: typeof import('./components/PostListSkeleton.vue')['default']
