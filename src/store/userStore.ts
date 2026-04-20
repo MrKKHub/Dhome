@@ -306,6 +306,47 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /** DTree 个人主页昵称：PATCH /user/update-profile，仅传 nickname，与注册页一致 ≤32 字 */
+  const updateProfileNickname = async (nickname: string): Promise<AuthResult> => {
+    if (!token.value || !userInfo.value) {
+      return { ok: false, message: '请先登录后再修改昵称' }
+    }
+    const trimmed = nickname.trim()
+    if (!trimmed) {
+      return { ok: false, message: '昵称不能为空' }
+    }
+    if (trimmed.length > 32) {
+      return { ok: false, message: '昵称不超过 32 字' }
+    }
+    try {
+      const res = await request.patch<{
+        id: string
+        email: string
+        nickname: string
+        avatar: string | null
+      }>('/user/update-profile', { nickname: trimmed })
+
+      const u = res.data
+      if (!u?.id) {
+        return { ok: false, message: '更新响应异常，请稍后再试' }
+      }
+      const next: UserInfo = {
+        id: u.id,
+        email: u.email,
+        nickname: u.nickname,
+        avatar: u.avatar,
+      }
+      userInfo.value = next
+      persistSession(token.value, next)
+      return { ok: true, message: '昵称已更新' }
+    } catch (e) {
+      return {
+        ok: false,
+        message: axiosErrorMessage(e, '昵称更新失败，请稍后再试'),
+      }
+    }
+  }
+
   return {
     isLoggedIn,
     token,
@@ -318,6 +359,7 @@ export const useUserStore = defineStore('user', () => {
     logout,
     uploadAvatar,
     updateProfileAvatar,
+    updateProfileNickname,
     mergeFromProfileSummary,
   }
 })

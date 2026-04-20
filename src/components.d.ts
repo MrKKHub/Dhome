@@ -26,6 +26,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SharePosterCard: typeof import('./components/SharePosterCard.vue')['default']
+    UserCard: typeof import('./components/UserCard.vue')['default']
     VanActionSheet: typeof import('vant/es')['ActionSheet']
     VanCalendar: typeof import('vant/es')['Calendar']
     VanField: typeof import('vant/es')['Field']

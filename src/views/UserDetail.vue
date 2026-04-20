@@ -5,6 +5,7 @@ import axios from 'axios'
 import { showToast } from 'vant'
 import request from '@/api/request'
 import PostCard from '@/components/PostCard.vue'
+import UserCard from '@/components/UserCard.vue'
 import { useAppToast } from '@/composables/useAppToast'
 import {
   usePostStore,
@@ -384,6 +385,13 @@ function onPostDeleted(id: string) {
   moodPosts.value = moodPosts.value.filter((x) => x.id !== id)
   capsulePosts.value = capsulePosts.value.filter((x) => x.id !== id)
 }
+
+/** UserCard 昵称 PATCH 成功后同步聚合页 payload，避免刷新前展示旧名 */
+function onUserCardNicknameUpdated(next: string) {
+  if (profile.value) {
+    profile.value.nickname = next
+  }
+}
 </script>
 
 <template>
@@ -487,15 +495,12 @@ function onPostDeleted(id: string) {
                 class="user-info-section__avatar h-24 w-24 rounded-full object-cover"
               />
               <div class="user-info-section__name-row mt-3">
-                <h1 class="user-info-section__nickname text-xl font-semibold">
-                  {{ profile.nickname }}
-                </h1>
-                <div v-if="profileStayInfo" class="stay-badge">
-                  <span class="badge-text">
-                    {{ profileStayInfo.icon }} {{ profileStayInfo.label }} (已入住
-                    {{ profileStayInfo.days }} 天)
-                  </span>
-                </div>
+                <UserCard
+                  :nickname="profile.nickname ?? ''"
+                  :editable="isViewerSelf"
+                  :stay-info="profileStayInfo"
+                  @updated="onUserCardNicknameUpdated"
+                />
               </div>
               <p class="user-info-section__bio mt-2 max-w-[280px] text-[14px] leading-relaxed">
                 {{ profile.bio || '在这个树洞里，抱抱自己。' }}
