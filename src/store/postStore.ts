@@ -115,6 +115,9 @@ export interface CommentItem {
   avatar: string
   content: string
   createdAt: string
+  parentId?: string | null
+  /** 仅一级评论带嵌套；回复本身不再嵌套 */
+  replies?: CommentItem[]
 }
 
 export interface PublishPayload {
@@ -627,6 +630,47 @@ export const usePostStore = defineStore('post', () => {
   const getCommentsByPost = (postId: string) =>
     commentsByPost.value[postId] ?? []
 
+  const mapCommentFromApi = (
+    postId: string,
+    c: {
+      id: string
+      content: string
+      createdAt: string
+      parentId?: string | null
+      author: { nickname: string; avatar: string | null }
+      replies?: Array<{
+        id: string
+        content: string
+        createdAt: string
+        parentId?: string | null
+        author: { nickname: string; avatar: string | null }
+      }>
+    },
+  ): CommentItem => {
+    const iso =
+      typeof c.createdAt === 'string' && c.createdAt.includes('T')
+        ? c.createdAt
+        : new Date().toISOString()
+    const childReplies = Array.isArray(c.replies)
+      ? c.replies.map((r) =>
+          mapCommentFromApi(postId, {
+            ...r,
+            replies: undefined,
+          }),
+        )
+      : []
+    return {
+      id: c.id,
+      postId,
+      nickname: c.author.nickname,
+      avatar: resolveAvatarUrl(c.author.avatar, c.author.nickname),
+      content: c.content,
+      createdAt: formatRelativeTime(iso),
+      parentId: c.parentId ?? null,
+      replies: childReplies.length ? childReplies : undefined,
+    }
+  }
+
   const fetchComments = async (postId: string) => {
     try {
       const res = await request.get<{
@@ -635,23 +679,23 @@ export const usePostStore = defineStore('post', () => {
           id: string
           content: string
           createdAt: string
+          parentId?: string | null
           author: { nickname: string; avatar: string | null }
+          replies?: Array<{
+            id: string
+            content: string
+            createdAt: string
+            parentId?: string | null
+            author: { nickname: string; avatar: string | null }
+          }>
         }>
       }>(`/posts/${encodeURIComponent(postId)}/comments`)
       if (!res.data?.success || !Array.isArray(res.data.comments)) {
         return
       }
-      commentsByPost.value[postId] = res.data.comments.map((c) => ({
-        id: c.id,
-        postId,
-        nickname: c.author.nickname,
-        avatar: resolveAvatarUrl(c.author.avatar, c.author.nickname),
-        content: c.content,
-        createdAt:
-          typeof c.createdAt === 'string' && c.createdAt.includes('T')
-            ? formatRelativeTime(c.createdAt)
-            : String(c.createdAt),
-      }))
+      commentsByPost.value[postId] = res.data.comments.map((c) =>
+        mapCommentFromApi(postId, c),
+      )
     } catch {
       commentsByPost.value[postId] = []
     }
@@ -660,6 +704,7 @@ export const usePostStore = defineStore('post', () => {
   const addComment = async (
     postId: string,
     content: string,
+    parentId?: string | null,
   ): Promise<{ ok: boolean; message?: string }> => {
     const trimmed = content.trim()
     if (!trimmed) {
@@ -671,6 +716,14 @@ export const usePostStore = defineStore('post', () => {
       return { ok: false, message: '未登录' }
     }
     try {
+      const body: { postId: string; content: string; parentId?: string } = {
+        postId,
+        content: trimmed,
+      }
+      const pTrim = parentId?.trim()
+      if (pTrim) {
+        body.parentId = pTrim
+      }
       const res = await request.post<{
         success: boolean
         commentCount: number
@@ -678,9 +731,10 @@ export const usePostStore = defineStore('post', () => {
           id: string
           content: string
           createdAt: string
+          parentId?: string | null
           author: { nickname: string; avatar: string | null }
         }
-      }>('/comments', { postId, content: trimmed })
+      }>('/comments', body)
       const d = res.data
       if (!d?.success || !d.comment) {
         return { ok: false, message: '发送失败' }
@@ -697,9 +751,21 @@ export const usePostStore = defineStore('post', () => {
         avatar: resolveAvatarUrl(c.author.avatar, c.author.nickname),
         content: c.content,
         createdAt: formatRelativeTime(iso),
+        parentId: c.parentId ?? null,
       }
       const list = commentsByPost.value[postId] ?? []
-      commentsByPost.value[postId] = [item, ...list]
+      const pKey = c.parentId?.trim()
+      if (pKey) {
+        const parent = list.find((x) => x.id === pKey)
+        if (parent) {
+          const prev = parent.replies ?? []
+          parent.replies = [...prev, item]
+        } else {
+          commentsByPost.value[postId] = [item, ...list]
+        }
+      } else {
+        commentsByPost.value[postId] = [item, ...list]
+      }
       const target = posts.value.find((p) => p.id === postId)
       if (target) {
         target.comments = d.commentCount

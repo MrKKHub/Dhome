@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { TransitionGroup, computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Heart, Sparkles, UserPlus } from 'lucide-vue-next'
 import axios from 'axios'
@@ -20,6 +20,10 @@ const userStore = useUserStore()
 const toast = useAppToast()
 const commentText = ref('')
 const commentSubmitting = ref(false)
+/** 二级回复：指向一级评论 id；与底部输入框联动 */
+const replyingToId = ref<string | null>(null)
+const replyingToNickname = ref('')
+const commentTextareaRef = ref<HTMLTextAreaElement | null>(null)
 const followLoading = ref(false)
 const isFollowedByMe = ref(false)
 const leafFollowBtnRef = ref<HTMLButtonElement | null>(null)
@@ -199,6 +203,28 @@ const comments = computed(() =>
   postId.value ? store.getCommentsByPost(postId.value) : [],
 )
 
+const commentPlaceholder = computed(() =>
+  replyingToId.value
+    ? `回应 @${replyingToNickname.value}…`
+    : '轻轻留下一句倾听或共情…',
+)
+
+function beginReply(target: { id: string; nickname: string }) {
+  if (!post.value || post.value.capsuleLocked) {
+    return
+  }
+  replyingToId.value = target.id
+  replyingToNickname.value = target.nickname
+  void nextTick(() => {
+    commentTextareaRef.value?.focus()
+  })
+}
+
+function clearReplyTarget() {
+  replyingToId.value = null
+  replyingToNickname.value = ''
+}
+
 watch(
   () => postId.value,
   async (id) => {
@@ -231,7 +257,11 @@ const submitComment = async () => {
   }
   commentSubmitting.value = true
   try {
-    const r = await store.addComment(postId.value, commentText.value)
+    const r = await store.addComment(
+      postId.value,
+      commentText.value,
+      replyingToId.value,
+    )
     if (!r.ok) {
       if (r.message && r.message !== '未登录') {
         toast.fail(r.message)
@@ -239,6 +269,7 @@ const submitComment = async () => {
       return
     }
     commentText.value = ''
+    clearReplyTarget()
     toast.success('你的回声已送达')
   } finally {
     commentSubmitting.value = false
@@ -350,12 +381,30 @@ const submitComment = async () => {
         这里没有输赢，只有陪伴。一句轻轻的「我懂」，也很好。
       </p>
 
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+      <div
+        v-if="replyingToId"
+        class="flex items-center justify-between gap-2 rounded-xl bg-lilac/10 px-3 py-2 text-[11px] text-warmInk/55"
+      >
+        <span>回应 <b class="font-medium text-warmInk/70">@{{ replyingToNickname }}</b></span>
+        <button
+          type="button"
+          class="shrink-0 font-medium text-brand/90 underline-offset-2 hover:underline"
+          @click="clearReplyTarget"
+        >
+          取消
+        </button>
+      </div>
+
+      <div
+        class="flex flex-col gap-2 sm:flex-row sm:items-start"
+        :class="{ 'detail-comment-bar--replying': !!replyingToId }"
+      >
         <textarea
+          ref="commentTextareaRef"
           v-model="commentText"
-          class="min-h-24 w-full rounded-2xl bg-apricot/70 px-3 py-2.5 text-[14px] leading-relaxed text-warmInk/85 outline-none transition-shadow duration-200 placeholder:text-warmInk/35 focus:bg-white focus:shadow-[0_0_0_3px_rgba(157,148,255,0.15)]"
+          class="detail-comment-textarea min-h-24 w-full rounded-2xl bg-apricot/70 px-3 py-2.5 text-[14px] leading-relaxed text-warmInk/85 outline-none transition-all duration-300 placeholder:text-warmInk/35 focus:bg-white/95 focus:shadow-[0_0_0_3px_rgba(157,148,255,0.15)]"
           maxlength="200"
-          placeholder="轻轻留下一句倾听或共情…"
+          :placeholder="commentPlaceholder"
         ></textarea>
         <button
           type="button"
@@ -373,18 +422,54 @@ const submitComment = async () => {
           :key="item.id"
           class="rounded-2xl border border-card bg-apricot/40 p-3"
         >
-          <div class="mb-2 flex items-center gap-2">
-            <img
-              :src="item.avatar"
-              :alt="item.nickname"
-              class="h-8 w-8 rounded-full border border-card object-cover"
-            />
-            <div>
-              <p class="text-[13px] font-semibold text-warmInk">{{ item.nickname }}</p>
-              <p class="text-[11px] text-warmInk/40">{{ item.createdAt }}</p>
+          <div class="mb-2 flex items-start justify-between gap-2">
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              <img
+                :src="item.avatar"
+                :alt="item.nickname"
+                class="h-8 w-8 shrink-0 rounded-full border border-card object-cover"
+              />
+              <div class="min-w-0">
+                <p class="text-[13px] font-semibold text-warmInk">{{ item.nickname }}</p>
+                <p class="text-[11px] text-warmInk/40">{{ item.createdAt }}</p>
+              </div>
             </div>
+            <button
+              type="button"
+              class="shrink-0 text-[11px] font-medium tracking-wide text-warmInk/38 underline-offset-2 transition-colors hover:text-brand hover:underline"
+              @click="beginReply(item)"
+            >
+              留声
+            </button>
           </div>
-          <p class="text-[14px] leading-relaxed text-warmInk/80">{{ item.content }}</p>
+          <p
+            class="cursor-pointer text-[14px] leading-relaxed text-warmInk/80 transition-opacity hover:opacity-90"
+            role="button"
+            tabindex="0"
+            @click="beginReply(item)"
+            @keydown.enter.prevent="beginReply(item)"
+          >
+            {{ item.content }}
+          </p>
+          <TransitionGroup
+            v-if="item.replies && item.replies.length > 0"
+            name="reply-list"
+            tag="div"
+            class="mt-2 space-y-2 border-l border-warmInk/10 pl-3"
+          >
+            <div
+              v-for="r in item.replies"
+              :key="r.id"
+              class="reply-row rounded-xl bg-white/35 px-2 py-2 backdrop-blur-[2px]"
+            >
+              <div class="mb-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span class="text-[10px] font-medium uppercase tracking-wider text-warmInk/35">回应</span>
+                <p class="text-[12px] font-medium text-warmInk/55">{{ item.nickname }}</p>
+                <span class="text-[10px] text-warmInk/30">{{ r.createdAt }}</span>
+              </div>
+              <p class="text-[13px] leading-relaxed text-warmInk/72">{{ r.content }}</p>
+            </div>
+          </TransitionGroup>
         </div>
       </div>
       <div
@@ -396,3 +481,42 @@ const submitComment = async () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+/* 二级回复插入：轻量滑入 + 淡入 */
+.reply-list-enter-active,
+.reply-list-leave-active {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.reply-list-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.reply-list-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
+}
+
+/* 回应某条回声时：输入区微弱呼吸光晕（毛玻璃感） */
+.detail-comment-bar--replying .detail-comment-textarea {
+  animation: detail-comment-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes detail-comment-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(157, 148, 255, 0.12),
+      0 0 18px rgba(157, 148, 255, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(157, 148, 255, 0.22),
+      0 0 26px rgba(157, 148, 255, 0.14);
+  }
+}
+</style>
