@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { Search, Shell, SlidersHorizontal } from 'lucide-vue-next'
-import { showToast } from 'vant'
+import { Search, SlidersHorizontal } from 'lucide-vue-next'
+import { closeToast, showToast } from 'vant'
+import HomeLeafBreeze, { type HomeLeafBreezeSeed } from '@/components/HomeLeafBreeze.vue'
+import { pickLeafVisual } from '@/utils/leafPicker'
 import PickupMoodModal from '@/components/PickupMoodModal.vue'
 import PostCard from '@/components/PostCard.vue'
 import PostListSkeleton from '@/components/PostListSkeleton.vue'
 import { usePostStore, type PostItem } from '@/store/postStore'
 import { useUserStore } from '@/store/userStore'
+
+/**
+ * 首页顶区枫叶漂移动画总开关。
+ * `false`：不挂载落叶层、不生成种子、不监听 resize 测量高度，其余首页逻辑与样式不变。
+ * 需要恢复时改为 `true` 即可。
+ */
+const ENABLE_HOME_LEAF_BREEZE = false
 
 // const tabs = ['推荐', '关注']
 const activeTab = ref('推荐')
@@ -24,6 +33,16 @@ const scrollTopCache = ref<Record<string, number>>({
 })
 /** 首页列表区独立滚动，高度见 style.css `.home-feed-scroll-area` */
 const feedScrollEl = ref<HTMLElement | null>(null)
+/** 落叶层下缘：搜索+筛选卡片底部，用于 fixed 落叶区高度 */
+const leafZoneEndRef = ref<HTMLElement | null>(null)
+const breezeZoneHeightPx = ref(220)
+/** 顶区落叶种子（仅当 ENABLE_HOME_LEAF_BREEZE 为 true 时填充） */
+const leafSeedsBehind = ref<HomeLeafBreezeSeed[]>([])
+const leafSeedsFront = ref<HomeLeafBreezeSeed[]>([])
+
+/** 叶子悬浮球：列表滚动中为 true，停止滚动 300ms 后恢复（防抖判断“停止”） */
+const isScrolling = ref(false)
+let scrollStopTimer: ReturnType<typeof setTimeout> | null = null
 
 const postStore = usePostStore()
 const userStore = useUserStore()
@@ -34,7 +53,9 @@ const {
   favoritingPostId,
 } = storeToRefs(postStore)
 const router = useRouter()
+const leafGradientId = useId()
 
+/** 随机拾起心情弹窗：与原先「捡起一片心情」入口一致，由 postStore.fetchRandomPickup 拉取 */
 const pickupOpen = ref(false)
 const pickupLoading = ref(false)
 const pickupPost = ref<PostItem | null>(null)
@@ -42,21 +63,6 @@ const pickupPost = ref<PostItem | null>(null)
 const showSkeleton = computed(
   () => postStore.posts.length === 0 && postStore.loading,
 )
-
-const axiosMessage = (e: unknown, fallback: string): string => {
-  if (!axios.isAxiosError(e)) {
-    return fallback
-  }
-  const data = e.response?.data as { message?: string | string[] } | undefined
-  const m = data?.message
-  if (Array.isArray(m) && m[0]) {
-    return m[0]
-  }
-  if (typeof m === 'string' && m.trim()) {
-    return m
-  }
-  return fallback
-}
 
 const currentPosts = computed(() => {
   let list = postStore.visibleFeedPosts
@@ -87,15 +93,42 @@ const currentPosts = computed(() => {
 
 const openPost = (id: string) => router.push(`/detail/${encodeURIComponent(id)}`)
 
+const axiosMessage = (e: unknown, fallback: string): string => {
+  if (!axios.isAxiosError(e)) {
+    return fallback
+  }
+  const data = e.response?.data as { message?: string | string[] } | undefined
+  const m = data?.message
+  if (Array.isArray(m) && m[0]) {
+    return m[0]
+  }
+  if (typeof m === 'string' && m.trim()) {
+    return m
+  }
+  return fallback
+}
+
+/**
+ * 拾起一片心情：校验登录 → 打开弹窗 → 调用 store 内封装好的随机帖接口（非裸 axios，保持与历史逻辑一致）
+ */
 const openPickup = async () => {
   if (!userStore.isLoggedIn || !userStore.token) {
     showToast('登录后，才能拾起他人的心情哦')
     router.push({ path: '/login', query: { redirect: '/' } })
     return
   }
+  if (pickupLoading.value) {
+    return
+  }
   pickupOpen.value = true
   pickupLoading.value = true
   pickupPost.value = null
+  // 轻量提示：与弹窗内骨架并存，不占全屏 Loading；结束在 finally 里 closeToast
+  showToast({
+    message: '正在林间拾起心情叶子...',
+    forbidClick: true,
+    duration: 0,
+  })
   try {
     pickupPost.value = await postStore.fetchRandomPickup()
   } catch (e) {
@@ -109,6 +142,7 @@ const openPickup = async () => {
     showToast(axiosMessage(e, '暂时拾不到心情，稍后再试～'))
   } finally {
     pickupLoading.value = false
+    closeToast()
   }
 }
 
@@ -121,6 +155,7 @@ const openPickupDetail = (id: string) => {
   closePickup()
   openPost(id)
 }
+
 const setFilter = (filter: string) => {
   activeFilter.value = filter
 }
@@ -148,10 +183,18 @@ const onRefresh = async () => {
 
 const handleFeedScroll = () => {
   const el = feedScrollEl.value
-  if (!el) {
-    return
+  if (el) {
+    scrollTopCache.value[activeTab.value] = el.scrollTop
   }
-  scrollTopCache.value[activeTab.value] = el.scrollTop
+  // 滚动中收起叶子球；防抖 300ms 无新滚动事件则视为停止
+  isScrolling.value = true
+  if (scrollStopTimer !== null) {
+    clearTimeout(scrollStopTimer)
+  }
+  scrollStopTimer = setTimeout(() => {
+    isScrolling.value = false
+    scrollStopTimer = null
+  }, 300)
 }
 
 watch(
@@ -167,45 +210,128 @@ watch(
   },
 )
 
+const updateBreezeZoneHeight = () => {
+  if (!ENABLE_HOME_LEAF_BREEZE) {
+    return
+  }
+  const el = leafZoneEndRef.value
+  if (!el) {
+    return
+  }
+  // 视口顶到搜索卡片下缘：与「搜索框下方高度」一致
+  breezeZoneHeightPx.value = Math.max(96, Math.ceil(el.getBoundingClientRect().bottom))
+}
+
+/**
+ * 顶区「四季林间」落叶：固定 5 片；LeafPicker 随机形态与色系；红框内随机位置 + 漂移/呼吸 delay 0–2s。
+ * 在 onMounted 调用，保证与首屏布局测量顺序一致。
+ */
+const buildLeafBreezeSeeds = () => {
+  if (!ENABLE_HOME_LEAF_BREEZE) {
+    leafSeedsBehind.value = []
+    leafSeedsFront.value = []
+    return
+  }
+  const count = 5
+  const seeds: HomeLeafBreezeSeed[] = Array.from({ length: count }, (_, i) => {
+    const visual = pickLeafVisual()
+    return {
+      id: `lb-${i}-${Math.random().toString(36).slice(2, 10)}`,
+      stroke: visual.stroke,
+      strokeSoft: visual.strokeSoft,
+      plateauOpacity: visual.plateauOpacity,
+      topPct: 6 + Math.random() * 86,
+      anchorLeftPct: 4 + Math.random() * 92,
+      delayDrift: Math.random() * 2,
+      delayBreathe: Math.random() * 2,
+      driftDuration: 8 + Math.random() * 4,
+      rtl: Math.random() < 0.22,
+      zIndex: 1 + Math.floor(Math.random() * 5),
+    }
+  })
+  const nBehind = Math.max(1, Math.floor(count / 2))
+  leafSeedsBehind.value = seeds.slice(0, nBehind)
+  leafSeedsFront.value = seeds.slice(nBehind)
+}
+
+let breezeResizeTimer: ReturnType<typeof setTimeout> | null = null
+const onBreezeResize = () => {
+  if (!ENABLE_HOME_LEAF_BREEZE) {
+    return
+  }
+  if (breezeResizeTimer !== null) {
+    clearTimeout(breezeResizeTimer)
+  }
+  breezeResizeTimer = setTimeout(() => {
+    updateBreezeZoneHeight()
+    breezeResizeTimer = null
+  }, 120)
+}
+
 onMounted(() => {
+  if (ENABLE_HOME_LEAF_BREEZE) {
+    buildLeafBreezeSeeds()
+  }
   postStore.setFeedChannel('recommended')
   if (postStore.page === 0) {
     postStore.fetchNextPage()
   }
   void nextTick().then(() => {
+    if (ENABLE_HOME_LEAF_BREEZE) {
+      updateBreezeZoneHeight()
+    }
     feedScrollEl.value?.addEventListener('scroll', handleFeedScroll, {
       passive: true,
     })
   })
+  if (ENABLE_HOME_LEAF_BREEZE) {
+    window.addEventListener('resize', onBreezeResize, { passive: true })
+  }
 })
 
 onUnmounted(() => {
+  if (scrollStopTimer !== null) {
+    clearTimeout(scrollStopTimer)
+    scrollStopTimer = null
+  }
+  if (breezeResizeTimer !== null) {
+    clearTimeout(breezeResizeTimer)
+    breezeResizeTimer = null
+  }
+  if (ENABLE_HOME_LEAF_BREEZE) {
+    window.removeEventListener('resize', onBreezeResize)
+  }
   feedScrollEl.value?.removeEventListener('scroll', handleFeedScroll)
 })
 </script>
 
 <template>
+  <!-- 勿在包裹 HomeLeafBreeze 的外层使用带 transform 的 animate-fade-in，否则 fixed 落叶会相对错误容器定位并可能不可见 -->
   <section
-    class="animate-fade-in home-feed-root mx-auto w-full max-w-[min(100%,26rem)] px-1 sm:px-0"
+    class="home-feed-root relative z-0 mx-auto w-full max-w-[min(100%,26rem)] px-1 sm:px-0"
   >
-    <div class="mb-4 px-1">
+    <HomeLeafBreeze
+      v-if="ENABLE_HOME_LEAF_BREEZE && leafSeedsBehind.length"
+      layer="behind"
+      :zone-height-px="breezeZoneHeightPx"
+      :leaves="leafSeedsBehind"
+    />
+
+    <div class="relative z-10 mb-4 px-1">
       <h2 class="text-2xl font-bold leading-relaxed text-warmInk">情绪树洞</h2>
       <p class="mt-1 text-[13px] leading-relaxed text-warmInk/55">慢一点，让心情有地方落脚</p>
     </div>
 
-    <div class="mb-4 px-1">
-      <button
-        type="button"
-        class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-soft bg-surface px-5 py-3 text-[14px] font-medium text-warmInk/80 shadow-warm backdrop-blur-sm transition-all duration-200 active:scale-[0.98]"
-        @click="openPickup"
-      >
-        <Shell class="h-[18px] w-[18px] shrink-0 text-brand" stroke-width="2" />
-        捡起一片心情
-      </button>
-    </div>
+    <HomeLeafBreeze
+      v-if="ENABLE_HOME_LEAF_BREEZE && leafSeedsFront.length"
+      layer="front"
+      :zone-height-px="breezeZoneHeightPx"
+      :leaves="leafSeedsFront"
+    />
 
     <div
-      class="mb-3 rounded-[28px] border border-card bg-surface p-3 shadow-warm backdrop-blur-sm"
+      ref="leafZoneEndRef"
+      class="relative z-20 mb-3 rounded-[28px] border border-card bg-surface p-3 shadow-warm backdrop-blur-sm"
     >
       <div class="mb-2 flex items-center gap-2 rounded-full bg-apricot/70 px-3 py-2">
         <Search class="h-4 w-4 text-warmInk/40" />
@@ -327,5 +453,112 @@ onUnmounted(() => {
       @close="closePickup"
       @open-detail="openPickupDetail"
     />
+
+    <!-- fixed：高于列表内容；z-index 低于拾起弹窗(60)，避免压住弹层；不与底栏中间「发布」同侧重叠 -->
+    <button
+      type="button"
+      class="leaf-fab"
+      :class="{
+        'leaf-fab--scrolling': isScrolling,
+        'leaf-fab--pickup-loading': pickupLoading && pickupOpen,
+      }"
+      aria-label="捡起一片心情"
+      :disabled="pickupLoading && pickupOpen"
+      @click="openPickup"
+    >
+      <span class="leaf-fab__icon-wrap">
+        <svg
+          class="leaf-fab__svg"
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient :id="leafGradientId" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FFB347" />
+              <stop offset="100%" stop-color="#FFCCB6" />
+            </linearGradient>
+          </defs>
+          <path
+            :fill="`url(#${leafGradientId})`"
+            d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"
+          />
+          <path
+            :fill="`url(#${leafGradientId})`"
+            d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"
+            opacity="0.92"
+          />
+        </svg>
+      </span>
+    </button>
   </section>
 </template>
+
+<style scoped>
+.leaf-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--tabbar-height) + 20px);
+  z-index: 40;
+  display: flex;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 10px 28px rgba(255, 140, 105, 0.16),
+    0 2px 10px rgba(74, 62, 62, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.leaf-fab--scrolling {
+  opacity: 0.15;
+  transform: scale(0.8) translateX(12px);
+  pointer-events: none;
+}
+
+.leaf-fab:disabled {
+  cursor: wait;
+  opacity: 1;
+}
+
+.leaf-fab__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: leaf-fab-float 2.6s ease-in-out infinite;
+}
+
+.leaf-fab--pickup-loading .leaf-fab__icon-wrap {
+  animation: leaf-fab-spin 0.85s linear infinite;
+}
+
+@keyframes leaf-fab-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes leaf-fab-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.leaf-fab__svg {
+  display: block;
+}
+</style>

@@ -16,6 +16,7 @@ declare module 'vue' {
     FirstVisitWelcome: typeof import('./components/FirstVisitWelcome.vue')['default']
     ForestAnonymousAvatar: typeof import('./components/ForestAnonymousAvatar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
+    HomeLeafBreeze: typeof import('./components/HomeLeafBreeze.vue')['default']
     MessageItem: typeof import('./components/MessageItem.vue')['default']
     MonthlyReport: typeof import('./components/MonthlyReport.vue')['default']
     PickupMoodModal: typeof import('./components/PickupMoodModal.vue')['default']

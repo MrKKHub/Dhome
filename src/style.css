@@ -36,6 +36,12 @@
   --tw-warm-ink: 74 62 62;
   --tw-warm-cream: 253 251 247;
   --tw-apricot: 255 249 242;
+
+  /**
+   * 首页底栏（app-shell-footer）可视高度近似值，供悬浮球等 fixed 元素用 calc 抬高到栏上。
+   * 与 main 的 pb-28 留白同量级，略小于整块底部安全区。
+   */
+  --tabbar-height: 5.25rem;
 }
 
 .dark {
@@ -62,6 +68,7 @@
   --tw-warm-ink: 241 245 249;
   --tw-warm-cream: 15 23 42;
   --tw-apricot: 30 41 59;
+  --tabbar-height: 5.25rem;
 
   /* Vant 根变量：弹层、单元格等与页面协调 */
   --van-background: #1e293b;
